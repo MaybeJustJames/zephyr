@@ -29,8 +29,6 @@ import           Language.JavaScript.Parser.AST
 import           Language.PureScript.CoreFn
 import           Language.PureScript.Names
 
-import Debug.Trace
-
 type Key = Qualified Ident
 
 data DCEVertex a
@@ -75,7 +73,6 @@ dce modules entryPoints = do
           where
             reachableSet = foldr (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks) S.empty vs
 
-    traceM ("Module: " ++ show moduleName)
     return $ Module moduleComments moduleName imports exports foreigns (dceExpr `map` decls)
   where
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
