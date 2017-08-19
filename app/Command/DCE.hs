@@ -12,7 +12,6 @@ module Command.DCE
   , entryPoint
   ) where
 
-import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Error.Class (MonadError(..))
 import           Control.Monad.IO.Class (MonadIO(..))
@@ -50,7 +49,7 @@ import qualified Language.PureScript.CoreImp.AST as Imp
 import qualified Language.PureScript.DCE as P
 import qualified Language.PureScript.Errors.JSON as P
 import qualified Options.Applicative as Opts
-import           System.Directory (copyFile, createDirectoryIfMissing, getCurrentDirectory)
+import           System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, getCurrentDirectory)
 import qualified System.Console.ANSI as ANSI
 import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath ((</>), takeDirectory)
@@ -77,9 +76,9 @@ printWarningsAndErrors verbose True warnings errors = do
   either (const exitFailure) (const (return ())) errors
 
 data DCEOptions = DCEOptions
-  { dceInputDir :: FilePath
+  { dceEntryPoints :: [EntryPoint]
+  , dceInputDir :: FilePath
   , dceOutputDir :: FilePath
-  , dceEntryPoints :: [EntryPoint]
   , dceDumpCoreFn :: Bool
   , dceVerbose :: Bool
   , dceOptimize :: Int
@@ -87,7 +86,7 @@ data DCEOptions = DCEOptions
 
 inputDirectory :: Opts.Parser FilePath
 inputDirectory = Opts.strOption $
-     Opts.short 'p'
+     Opts.short 'i'
   <> Opts.long "purs-output"
   <> Opts.value "output"
   <> Opts.showDefault
@@ -114,10 +113,9 @@ instance Read EntryPoint where
     unsnoc as = Just (init as, last as)
 
 entryPoint :: Opts.Parser EntryPoint
-entryPoint = Opts.option (Opts.auto >>= checkIfQualified) $
-     Opts.short 'e'
-  <> Opts.long "entry-point"
-  <> Opts.help "Qualified identifier. All code which is not a transitive dependency of an entry point will be removed. You can use this option multiple times."
+entryPoint = Opts.argument (Opts.auto >>= checkIfQualified) $
+     Opts.metavar "entry-point"
+  <> Opts.help "Qualified identifier. All code which is not a transitive dependency of an entry point will be removed. You can pass multiple entry points."
   where
   checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
     "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
@@ -144,12 +142,13 @@ optimizeLevel = Opts.option Opts.auto $
   <> Opts.help "Optimizer level, with -O1 unused exports of foreign modules will be removed (without checking if they are used elsewhere in the foreign module)."
 
 dceOptions :: Opts.Parser DCEOptions
-dceOptions = DCEOptions <$> inputDirectory
-                        <*> outputDirectory
-                        <*> many entryPoint
-                        <*> dumpCoreFn
-                        <*> verboseOutput
-                        <*> optimizeLevel
+dceOptions = DCEOptions
+  <$> Opts.some entryPoint
+  <*> inputDirectory
+  <*> outputDirectory
+  <*> dumpCoreFn
+  <*> verboseOutput
+  <*> optimizeLevel
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
@@ -166,19 +165,26 @@ readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.rea
 
 data DCEError
   = DCEParseErrors [Text]
+  | DCEInputNotDirectory FilePath
   | DCENoInputs FilePath
 
 formatDCEError :: DCEError -> Text
 formatDCEError (DCEParseErrors errs)
-  = "zephyr: failed parsing:\n  " <> (T.intercalate "\n  " errs)
+  = "error: failed parsing:\n  " <> (T.intercalate "\n  " errs)
 formatDCEError (DCENoInputs path)
-  = "zephyr: no inputs found " <> T.pack path
+  = "error: inputs found under \"" <> T.pack path <> "\" directory"
+formatDCEError (DCEInputNotDirectory path)
+  = "error: directory \"" <> T.pack path <> "\" does not exist"
 
 dceCommand :: DCEOptions -> ExceptT DCEError IO ()
 dceCommand opts = do
     let entryPoints = runEntryPoint <$> (dceEntryPoints opts)
         cfnGlb = compile "**/corefn.json"
     inpts <- liftIO $ globDir1 cfnGlb (dceInputDir opts) >>= readInput
+
+    inptDirExist <- lift $ doesDirectoryExist (dceInputDir opts)
+    when (not inptDirExist) $
+      throwError (DCEInputNotDirectory (dceInputDir opts))
 
     let errs = lefts inpts
     when (not . null $ errs) $
