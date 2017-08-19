@@ -3,7 +3,7 @@ version:             0.1.0.0
 synopsis:            Zephyr Tree Shaking for PureScript Compiler
 description:         Tree shaking tool for PureScript CoreFn AST
 homepage:            https://github.com/coot/zephyr#readme
-license:             BSD3
+license:             MPL-2.0
 license-file:        LICENSE
 author:              Marcin Szamotulski <coot@riseup.net>
 maintainer:          Marcin Szamotulski <coot@riseup.net>
