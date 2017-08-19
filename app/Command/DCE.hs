@@ -87,10 +87,10 @@ data DCEOptions = DCEOptions
 inputDirectory :: Opts.Parser FilePath
 inputDirectory = Opts.strOption $
      Opts.short 'i'
-  <> Opts.long "purs-output"
+  <> Opts.long "input-directory"
   <> Opts.value "output"
   <> Opts.showDefault
-  <> Opts.help "The purs output directory"
+  <> Opts.help "Input directory (purs output directory)."
 
 outputDirectory :: Opts.Parser FilePath
 outputDirectory = Opts.strOption $
@@ -98,7 +98,7 @@ outputDirectory = Opts.strOption $
   <> Opts.long "dce-output"
   <> Opts.value "dce-output"
   <> Opts.showDefault
-  <> Opts.help "The dce output directory"
+  <> Opts.help "Output directory."
 
 newtype EntryPoint = EntryPoint { runEntryPoint :: (P.Qualified P.Ident) }
 
@@ -125,14 +125,14 @@ dumpCoreFn :: Opts.Parser Bool
 dumpCoreFn = Opts.switch $
      Opts.long "dump-corefn"
   <> Opts.showDefault
-  <> Opts.help "Dump the (functional) core representation of the compiled and dce-ed code at dce-output/*/corefn.json"
+  <> Opts.help "Dump the (functional) core representation of the dce-ed."
 
 verboseOutput :: Opts.Parser Bool
 verboseOutput = Opts.switch $
      Opts.short 'v'
   <> Opts.long "verbose"
   <> Opts.showDefault
-  <> Opts.help "Verbose parser CoreFn errors."
+  <> Opts.help "Verbose CoreFn parser errors."
 
 optimizeLevel :: Opts.Parser Int
 optimizeLevel = Opts.option Opts.auto $
