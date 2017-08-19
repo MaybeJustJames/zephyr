@@ -220,7 +220,6 @@ dceCommand opts = do
             jsFile = outputDir </> filePath </> "index.js"
             foreignInFile = inputDir </> filePath </> "foreign.js"
             foreignOutFile = outputDir </> filePath </> "foreign.js"
-        -- todo: error message
         when (isJust foreignInclude) $ do
           lift $ P.makeIO
             (const (P.ErrorMessage [] $ P.CannotReadFile foreignInFile))
