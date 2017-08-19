@@ -30,33 +30,26 @@ import qualified Data.ByteString.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
 import           Data.List (init, last, null)
-import           Data.Maybe (isJust)
+import           Data.Maybe (fromJust, isJust, isNothing, listToMaybe)
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import           Data.Text.Lazy.Encoding (encodeUtf8)
-import           Data.Text.IO as T
-import           Data.Version (Version(Version), showVersion)
+import qualified Data.Text.IO as T
+import           Data.Version (Version)
 import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
-import           Language.PureScript.AST.Declarations (ErrorMessage(..), SimpleErrorMessage(CannotReadFile, CannotWriteFile, ErrorParsingFFIModule))
-import           Language.PureScript.Bundle (ErrorMessage(InvalidTopLevel))
-import qualified Language.PureScript.CodeGen.JS as J
-import           Language.PureScript.CodeGen.JS.Printer
-import           Language.PureScript.CoreFn.Ann (Ann)
-import           Language.PureScript.CoreFn.FromJSON
-import           Language.PureScript.CoreFn.Module
-import           Language.PureScript.CoreFn.ToJSON
+import qualified Language.PureScript.Bundle as P
+import qualified Language.PureScript.CodeGen.JS as P
+import qualified Language.PureScript.CodeGen.JS.Printer as P
+import qualified Language.PureScript.CoreFn as CoreFn
+import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
+import qualified Language.PureScript.CoreFn.ToJSON as CoreFn
 import qualified Language.PureScript.CoreImp.AST as Imp
-import           Language.PureScript.DCE
-import           Language.PureScript.Errors (errorMessage)
-import           Language.PureScript.Errors.JSON
-import           Language.PureScript.Make (Make, makeIO, runMake)
-import           Language.PureScript.Names
-import           Language.PureScript.Options
+import qualified Language.PureScript.DCE as P
+import qualified Language.PureScript.Errors.JSON as P
 import qualified Options.Applicative as Opts
--- import qualified Paths_purescript as Paths
 import           System.Directory (copyFile, createDirectoryIfMissing, getCurrentDirectory)
 import qualified System.Console.ANSI as ANSI
 import           System.Exit (exitFailure, exitSuccess)
@@ -64,9 +57,6 @@ import           System.FilePath ((</>), takeDirectory)
 import           System.FilePath.Glob (compile, globDir1)
 import           System.IO (stderr)
 import qualified System.IO as IO
-
-purescriptVersion :: Version
-purescriptVersion = Version [0,11,6] []
 
 printWarningsAndErrors :: Bool -> Bool -> P.MultipleErrors -> Either P.MultipleErrors a -> IO ()
 printWarningsAndErrors verbose False warnings errors = do
@@ -82,8 +72,8 @@ printWarningsAndErrors verbose False warnings errors = do
     Right _ -> return ()
 printWarningsAndErrors verbose True warnings errors = do
   IO.hPutStrLn stderr . BU8.toString . B.toStrict . A.encode $
-    JSONResult (toJSONErrors verbose P.Warning warnings)
-               (either (toJSONErrors verbose P.Error) (const []) errors)
+    P.JSONResult (P.toJSONErrors verbose P.Warning warnings)
+               (either (P.toJSONErrors verbose P.Error) (const []) errors)
   either (const exitFailure) (const (return ())) errors
 
 data DCEOptions = DCEOptions
@@ -111,12 +101,12 @@ outputDirectory = Opts.strOption $
   <> Opts.showDefault
   <> Opts.help "The dce output directory"
 
-newtype EntryPoint = EntryPoint { runEntryPoint :: (Qualified Ident) }
+newtype EntryPoint = EntryPoint { runEntryPoint :: (P.Qualified P.Ident) }
 
 instance Read EntryPoint where
   readsPrec _ s = case unsnoc (T.splitOn "." (T.pack s)) of
-      Just (as, a) | length as > 0 -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ ProperName <$> as)), "")]
-                   | otherwise     -> [(EntryPoint (Qualified Nothing (Ident a)), "")]
+      Just (as, a) | length as > 0 -> [(EntryPoint (P.mkQualified (P.Ident a) (P.ModuleName $ P.ProperName <$> as)), "")]
+                   | otherwise     -> [(EntryPoint (P.Qualified Nothing (P.Ident a)), "")]
       Nothing                      -> []
     where
     unsnoc :: [a] -> Maybe ([a], a)
@@ -129,8 +119,8 @@ entryPoint = Opts.option (Opts.auto >>= checkIfQualified) $
   <> Opts.long "entry-point"
   <> Opts.help "Qualified identifier. All code which is not a transitive dependency of an entry point will be removed. You can use this option multiple times."
   where
-  checkIfQualified (EntryPoint q@(Qualified Nothing _)) = fail $
-    "not a qualified indentifier: '" ++ T.unpack (showQualified runIdent q) ++ "'"
+  checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
+    "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
   checkIfQualified e = return e
 
 dumpCoreFn :: Opts.Parser Bool
@@ -139,8 +129,8 @@ dumpCoreFn = Opts.switch $
   <> Opts.showDefault
   <> Opts.help "Dump the (functional) core representation of the compiled and dce-ed code at dce-output/*/corefn.json"
 
-verbose :: Opts.Parser Bool
-verbose = Opts.switch $
+verboseOutput :: Opts.Parser Bool
+verboseOutput = Opts.switch $
      Opts.short 'v'
   <> Opts.long "verbose"
   <> Opts.showDefault
@@ -158,96 +148,94 @@ dceOptions = DCEOptions <$> inputDirectory
                         <*> outputDirectory
                         <*> many entryPoint
                         <*> dumpCoreFn
-                        <*> verbose
+                        <*> verboseOutput
                         <*> optimizeLevel
 
-readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, ModuleT () Ann)]
+readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
   where
-  decodeCoreFn :: B.ByteString -> Either (JSONPath, String) (Version, ModuleT () Ann)
-  decodeCoreFn = eitherDecodeWith json (A.iparse moduleFromJSON)
+  decodeCoreFn :: B.ByteString -> Either (JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
+  decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON)
 
   addPath
     :: FilePath
-    -> Either (JSONPath, String) (Version, ModuleT () Ann)
-    -> Either (FilePath, JSONPath, String) (Version, ModuleT () Ann)
+    -> Either (JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
+    -> Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
   addPath f = either (Left . incl) Right
     where incl (l,r) = (f,l,r)
 
 data DCEError
   = DCEParseErrors [Text]
-  -- | DCEVersionError Version
+  | DCENoInputs FilePath
 
 formatDCEError :: DCEError -> Text
 formatDCEError (DCEParseErrors errs)
-  = "purs dce: failed parsing:\n  " <> (T.intercalate "\n  " errs)
-{--
-  - formatDCEError (DCEVersionError v)
-  -   = "purs dce: corefn dump built with " <> (T.pack $ showVersion v) <> ", purs " <> (T.pack $ showVersion Paths.version)
-  - 
-  --}
+  = "zephyr: failed parsing:\n  " <> (T.intercalate "\n  " errs)
+formatDCEError (DCENoInputs path)
+  = "zephyr: no inputs found " <> T.pack path
+
 dceCommand :: DCEOptions -> ExceptT DCEError IO ()
 dceCommand opts = do
     let entryPoints = runEntryPoint <$> (dceEntryPoints opts)
         cfnGlb = compile "**/corefn.json"
     inpts <- liftIO $ globDir1 cfnGlb (dceInputDir opts) >>= readInput
+
     let errs = lefts inpts
     when (not . null $ errs) $
       throwError (DCEParseErrors $ formatErr `map` errs)
 
-    {--
-      - let verMismatches = filter ((/= showVersion Paths.version) . showVersion . fst) . rights $ inpts
-      - when (not $ null $ verMismatches) $
-      -   throwError (DCEVersionError (fst $ head verMismatches))
-      --}
+    let mPursVer = fmap fst . listToMaybe . rights $ inpts
+    when (isNothing mPursVer) $
+      throwError (DCENoInputs (dceInputDir opts) )
+    let pursVer = fromJust mPursVer
 
-    let mods = dce (snd `map` rights inpts) entryPoints
+    let mods = P.dce (snd `map` rights inpts) entryPoints
     if dceDumpCoreFn opts
-      then liftIO $ runDumpCoreFn mods (dceOutputDir opts)
+      then liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts)
       else liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
 
   where
-    runCodegen :: [ModuleT () Ann] -> FilePath -> FilePath -> IO ()
+    runCodegen :: [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> FilePath -> IO ()
     runCodegen mods inputDir outputDir = do
       -- I need to run `codegen` from `MakeActions` directly
       -- runMake opts (make ...) accepts `PureScript.AST.Declarations.Module`
-      (makeErrors, makeWarnings) <- runMake (Options True False False False) $ runSupplyT 0 (forM mods codegen)
+      (makeErrors, makeWarnings) <- P.runMake (P.Options True False False False) $ runSupplyT 0 (forM mods codegen)
       printWarningsAndErrors False False makeWarnings makeErrors
       where
-      codegen :: ModuleT () Ann -> SupplyT Make ()
-      codegen m@(Module _ mn _ _ mf _) = do
+      codegen :: CoreFn.ModuleT () CoreFn.Ann -> SupplyT P.Make ()
+      codegen m@(CoreFn.Module _ mn _ _ mf _) = do
         let foreignInclude =
               if null mf
                 then Nothing
                 else Just $ Imp.App Nothing (Imp.Var Nothing "require") [Imp.StringLiteral Nothing "./foreign"]
-        rawJs <- J.moduleToJs m foreignInclude
-        let pjs = prettyPrintJS rawJs
-        let filePath = T.unpack (runModuleName mn)
+        rawJs <- P.moduleToJs m foreignInclude
+        let pjs = P.prettyPrintJS rawJs
+        let filePath = T.unpack (P.runModuleName mn)
             jsFile = outputDir </> filePath </> "index.js"
             foreignInFile = inputDir </> filePath </> "foreign.js"
             foreignOutFile = outputDir </> filePath </> "foreign.js"
         -- todo: error message
         when (isJust foreignInclude) $ do
-          lift $ makeIO
-            (const (ErrorMessage [] $ CannotReadFile foreignInFile))
+          lift $ P.makeIO
+            (const (P.ErrorMessage [] $ P.CannotReadFile foreignInFile))
             (createDirectoryIfMissing True (outputDir </> filePath))
           if dceOptimize opts >= 1
             then do
-              jsCode <- lift $ makeIO
-                (const $ ErrorMessage [] $ CannotReadFile foreignInFile)
+              jsCode <- lift $ P.makeIO
+                (const $ P.ErrorMessage [] $ P.CannotReadFile foreignInFile)
                 (B.unpack <$> B.readFile foreignInFile)
               case JS.parse jsCode foreignInFile of
                 Right (JS.JSAstProgram ss ann) -> do
-                  let ss' = dceForeignModule (fst <$> mf) ss
+                  let ss' = P.dceForeignModule (fst <$> mf) ss
                       jsAst' = JS.JSAstProgram ss' ann
-                  lift $ makeIO
-                    (const $ ErrorMessage [] $ CannotWriteFile foreignOutFile)
+                  lift $ P.makeIO
+                    (const $ P.ErrorMessage [] $ P.CannotWriteFile foreignOutFile)
                     (B.writeFile foreignOutFile (encodeUtf8 $ JS.renderToText jsAst'))
-                Right _ -> throwError (errorMessage $ ErrorParsingFFIModule foreignInFile (Just InvalidTopLevel))
-                _ -> throwError (errorMessage $ ErrorParsingFFIModule foreignInFile Nothing)
+                Right _ -> throwError (P.errorMessage $ P.ErrorParsingFFIModule foreignInFile (Just P.InvalidTopLevel))
+                _ -> throwError (P.errorMessage $ P.ErrorParsingFFIModule foreignInFile Nothing)
             else
-              lift $ makeIO
-                (const (ErrorMessage [] (CannotReadFile foreignInFile)))
+              lift $ P.makeIO
+                (const (P.ErrorMessage [] (P.CannotReadFile foreignInFile)))
                 (copyFile foreignInFile foreignOutFile)
         lift $ writeTextFile jsFile (B.fromStrict $ TE.encodeUtf8 pjs)
       
@@ -257,19 +245,19 @@ dceCommand opts = do
         then T.pack $ f ++ ":\n    " ++ A.formatError p err
         else T.pack f 
 
-    runDumpCoreFn :: [ModuleT () Ann] -> FilePath -> IO ()
-    runDumpCoreFn mods outputDir = do
-      let jsons = (\m@(Module _ mn _ _ _ _ )
-            -> ( outputDir </> T.unpack (runModuleName mn) </> "corefn.json"
-               , A.object [ (runModuleName mn, moduleToJSON purescriptVersion m) ]
+    runDumpCoreFn :: Version -> [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> IO ()
+    runDumpCoreFn pursVer mods outputDir = do
+      let jsons = (\m@(CoreFn.Module _ mn _ _ _ _ )
+            -> ( outputDir </> T.unpack (P.runModuleName mn) </> "corefn.json"
+               , A.object [ (P.runModuleName mn, CoreFn.moduleToJSON pursVer m) ]
                )) <$> mods
       sequence_ $ (uncurry writeJsonFile) <$> jsons
 
     mkdirp :: FilePath -> IO ()
     mkdirp = createDirectoryIfMissing True . takeDirectory
 
-    writeTextFile :: FilePath -> B.ByteString -> Make ()
-    writeTextFile path text = makeIO (const (ErrorMessage [] $ CannotWriteFile path)) $ do
+    writeTextFile :: FilePath -> B.ByteString -> P.Make ()
+    writeTextFile path text = P.makeIO (const (P.ErrorMessage [] $ P.CannotWriteFile path)) $ do
       mkdirp path
       B.writeFile path text
 
