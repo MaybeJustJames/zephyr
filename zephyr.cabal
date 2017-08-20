@@ -68,6 +68,7 @@ executable zephyr
 test-suite zephyr-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
+  default-extensions: OverloadedStrings
   main-is:             Main.hs
   build-depends:      
       aeson >=1.0 && <1.2
@@ -80,9 +81,12 @@ test-suite zephyr-test
     , filepath
     , Glob >=0.7 && <0.9
     , hspec
+    , hspec-core
+    , HUnit
     , language-javascript >=0.6.0.9 && <0.7
     , mtl >=2.1.0 && <2.3.0
     , optparse-applicative >=0.13.0
+    , process < 1.5.0.0
     , purescript
     , text
     , transformers >=0.3.0 && <0.6
