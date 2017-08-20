@@ -33,13 +33,13 @@ It is good to run `webpack` or `rollup` to run a javascript tree shaking
 algorithm on the javascript code that is pulled in your bundle by your by your
 foreign imports.
 
-# Tested
+# Tests
 
 It is tested on dozeon of various projects of
 [@alexmingoia](https://github.com/alexmingoia),
 [@bodil](https://github.com/bodil), [@coot](https://github.com/coot),
-[purescript-contrib](https://github.com/purescript-contrib) and
-[slamdata](https://github.com/slamdata) including:
+[@purescript-contrib](https://github.com/purescript-contrib) and
+[@slamdata](https://github.com/slamdata) including:
 * [purescript-pux](https://github.com/alexmingoia/purescript-pux)
 * [purescript-smolder](https://github.com/bodil/purescript-smolder)
 * [purescript-signal](https://github.com/bodil/purescript-signal)
@@ -50,4 +50,4 @@ It is tested on dozeon of various projects of
 * [purescript-react-hocs](https://github.com/coot/purescript-react-hocs) (_karma tests_)
 * [purescript-react-redox](https://github.com/coot/purescript-react-redox) (_karma test_)
 
-Checkout unit test suite.
+Checkout unit test suite to see all of them.
