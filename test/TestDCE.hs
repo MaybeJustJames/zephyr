@@ -30,7 +30,7 @@ hasIdent :: Ident -> [Bind ()] -> Bool
 hasIdent i = (i `elem`) . concatMap getNames
 
 spec :: Spec
-spec = context "zephyr" $ do
+spec = context "zephyr" $
   context "dceExpr" $ do
     specify "should remove unused identifier" $ do
       let e :: Expr ()

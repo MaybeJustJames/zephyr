@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Main (main) where
 
 import           Prelude ()
@@ -7,6 +8,7 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Except
 import           Data.List (last)
 import           Data.Foldable (forM_)
+import           Data.Maybe (fromJust, isJust, maybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Traversable (sequence)
@@ -26,63 +28,64 @@ import           Test.HUnit (assertEqual)
 
 import qualified TestDCE
 
-coreLibs :: [(Text, [Text], [Text])]
+data CoreLibArg = CoreLibArg
+  { coreLibArgRepo :: Text
+  -- ^ git repo
+  , coreLibArgNpmModules :: [Text]
+  -- ^ additional node modules to install
+  , coreLibArgEntries :: [Text]
+  -- ^ entry points for `zephyr`
+  , coreLibArgJsCmd :: Maybe (Text, Text)
+  -- ^ node script, expected output
+  }
+
+coreLibs :: [CoreLibArg]
 coreLibs =
-  [ ("git@github.com:alexmingoia/purescript-pux", [], ["Test.Main.main"])
-  -- | smolder
-  -- test suit does not exit
-  , ("git@github.com:bodil/purescript-smolder", [], ["Test.Main.main"])
-  , ("git@github.com:bodil/purescript-signal", [], ["Test.Main.main"])
-  , ("git@github.com:bodil/purescript-test-unit", [], ["Test.Main.main"])
-  -- |
-  -- requires window
-  -- , ("git@github.com:paf31/purescript-behaviors", [], ["Test.Main.main"])
-  -- | thermite
-  -- requires to manually install react & react-dom and requires
-  -- window objct
-  -- , ("git@github.com:paf31/purescript-thermite", [], ["Test.Main.main"])
-  , ("git@github.com:slamdata/purescript-aff", [], ["Test.Main.main"])
-  -- | bigints does not compile
-  -- , ("git@github.com:slamdata/purescript-bigints", [], ["Test.Main.main"])
-  -- | halogen-dom
-  -- requires window object
-  -- , ("git@github.com:slamdata/purescript-halogen-vdom", [], ["Test.Main.main"])
-  , ("git@github.com:slamdata/purescript-matryoshka", [], ["Test.Main.main"])
-  -- | does not compile
-  -- , ("git@github.com:slamdata/purescript-mockfree", [], ["Test.Main.main"])
-  , ("git@github.com:slamdata/purescript-routing", [], ["Test.Main.main"])
-  , ("git@github.com:slamdata/purescript-search", [], ["Test.Main.main"])
-  -- | does not compile
-  -- , ("git@github.com:slamdata/purescript-stalling-coroutines", [], ["Test.Main.main"])
-  -- | does not compile
-  -- , ("git@github.com:slamdata/purescript-xpath", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-argonaut", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-argonaut-codecs", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-argonaut-core", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-argonaut-generic", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-argonaut-traversals", [], ["Test.Main.main"])
-  -- , ("git@github.com:purescript-contrib/purescript-drawing", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-foreign-lens", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-handlebars", ["handlebars"], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-js-date", [], ["Test.Main.main"])
-  -- , ("git@github.com:purescript-contrib/purescript-jquery", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-lens", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-profunctor-lenses", [], ["Test.Main.main"])
-  -- , ("git@github.com:purescript-contrib/pulp", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-nullable", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-options", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-parsing", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-precise", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-string-parsers", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-strongcheck", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-unicode", [], ["Test.Main.main"])
-  -- , ("git@github.com:purescript-contrib/purescript-arraybuffer-types", [], ["Test.Main.main"])
-  -- , ("git@github.com:purescript-contrib/purescript-freet", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-js-timers", [], ["Test.Main.main"])
-  , ("git@github.com:purescript-contrib/purescript-unsafe-reference", [], ["Test.Main.main"])
-  -- | couroutine-aff and coroutine test suits run an infinite loop
-  -- , ("git@github.com:purescript-contrib/purescript-aff-coroutines", [], ["Test.Main.main"])
-  -- , ("git@github.com:purescript-contrib/purescript-coroutines", [], ["Test.Main.main"])
+  [ CoreLibArg "git@github.com:alexmingoia/purescript-pux" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:bodil/purescript-smolder" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:bodil/purescript-signal" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:bodil/purescript-test-unit" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:slamdata/purescript-aff" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:slamdata/purescript-matryoshka" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:slamdata/purescript-routing" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:slamdata/purescript-search" [] ["Test.Main.main"] Nothing
+  , CoreLibArg
+      "git@github.com:purescript/purescript-console"
+      []
+      ["Control.Monad.Eff.Console.log"]
+      (Just
+        ( "require('./dce-output/Control.Monad.Eff.Console').log('hello')()"
+        , "hello\n"))
+  , CoreLibArg "git@github.com:purescript/purescript-free" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript/purescript-prelude" [] ["Test.Main.main"] Nothing
+  , CoreLibArg
+      "git@github.com:purescript/purescript-partial"
+      []
+      ["Test.Main.main", "Test.Main.safely", "Test.Main.safely2"]
+      (Just
+        ( "var r = require('./dce-output/Test.Main'); console.log(r.safely == r.safely2)"
+        , "true\n"))
+  , CoreLibArg "git@github.com:purescript/purescript-quickcheck" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript/purescript-unsafe-coerce" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-argonaut" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-argonaut-codecs" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-argonaut-core" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-argonaut-generic" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-argonaut-traversals" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-foreign-lens" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-handlebars" ["handlebars"] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-js-date" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-lens" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-profunctor-lenses" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-nullable" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-options" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-parsing" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-precise" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-string-parsers" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-strongcheck" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-unicode" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-js-timers" [] ["Test.Main.main"] Nothing
+  , CoreLibArg "git@github.com:purescript-contrib/purescript-unsafe-reference" [] ["Test.Main.main"] Nothing
   ]
 
 karmaLibs = 
@@ -99,6 +102,7 @@ data TestError
   | BrowserifyError Text ExitCode String
   | ZephyrError Text ExitCode String
   | NodeError Text ExitCode String String
+  | JsCmdError Text Text
   deriving (Eq)
 
 instance Show TestError where
@@ -118,6 +122,7 @@ instance Show TestError where
     = "zephyr failed \"" ++ T.unpack repo ++ "\" (" ++ show ec ++ ")\n" ++ err
   show (NodeError repo ec std err)
     = "node failed \"" ++ T.unpack repo ++ "\" (" ++ show ec ++ ")\n\n" ++ std ++ "\n\n" ++ err
+  show (JsCmdError exp got) = "expected:\n\n" ++ T.unpack exp ++ "\n\nbut got:\n\n" ++ T.unpack got ++ "\n"
 
 isGitError :: TestError -> Bool
 isGitError (GitError _ _ _) = True
@@ -126,42 +131,42 @@ isGitError _ = False
 cloneRepo
   :: Text
   -> ExceptT TestError IO ()
-cloneRepo repo = do
-  let dir = last $ T.splitOn "/" repo
+cloneRepo coreLibArgRepo = do
+  let dir = last $ T.splitOn "/" coreLibArgRepo
 
   repoExist <- lift $ doesDirectoryExist $ T.unpack dir
   when (not repoExist) $ do
-    (ecGit, _, errGc) <- lift $ readProcessWithExitCode "git" ["clone", "--depth", "1", T.unpack repo, T.unpack dir] ""
-    when (ecGit /= ExitSuccess) (throwError (GitError repo ecGit errGc))
+    (ecGit, _, errGc) <- lift $ readProcessWithExitCode "git" ["clone", "--depth", "1", T.unpack coreLibArgRepo, T.unpack dir] ""
+    when (ecGit /= ExitSuccess) (throwError (GitError coreLibArgRepo ecGit errGc))
   lift $ setCurrentDirectory (T.unpack dir)
 
 npmInstall
   :: Text
   -> [Text]
   -> ExceptT TestError IO ()
-npmInstall repo npmModules = do
+npmInstall coreLibArgRepo npmModules = do
   npmInstall <- lift $ doesFileExist "package.json"
   nodeModulesExists <- lift $ doesDirectoryExist "node_modules"
   when ((npmInstall || not (null npmModules)) && not nodeModulesExists) $ do
     when (not $ null $ npmModules) $ do
       (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode "npm" (["install"] ++ T.unpack `map` npmModules) ""
-      when (ecNpm /= ExitSuccess) (throwError (NpmError repo ecNpm errNpm))
+      when (ecNpm /= ExitSuccess) (throwError (NpmError coreLibArgRepo ecNpm errNpm))
     (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode "npm" ["install"] ""
-    when (ecNpm /= ExitSuccess) (throwError (NpmError repo ecNpm errNpm))
+    when (ecNpm /= ExitSuccess) (throwError (NpmError coreLibArgRepo ecNpm errNpm))
 
 bowerInstall
   :: Text
   -> ExceptT TestError IO ()
-bowerInstall repo = do
+bowerInstall coreLibArgRepo = do
   bowerComponentsExists <- lift $ doesDirectoryExist "bower_components"
   when (not bowerComponentsExists) $ do
     (ecBower, _, errBower) <- lift $ readProcessWithExitCode "bower" ["install"] ""
-    when (ecBower /= ecBower) (throwError (BowerError repo ecBower errBower))
+    when (ecBower /= ecBower) (throwError (BowerError coreLibArgRepo ecBower errBower))
 
 pursCompile
   :: Text
   -> ExceptT TestError IO ()
-pursCompile repo = do
+pursCompile coreLibArgRepo = do
   outputDirExists <- lift $ doesDirectoryExist "output"
   when (not outputDirExists) $ do
     (ecPurs, _, errPurs) <- lift
@@ -174,36 +179,43 @@ pursCompile repo = do
           , "test/**/*.purs"
           ]
           ""
-    when (ecPurs /= ExitSuccess) (throwError $ PursError repo ecPurs errPurs)
+    when (ecPurs /= ExitSuccess) (throwError $ PursError coreLibArgRepo ecPurs errPurs)
 
 runZephyr
   :: Text
   -> [Text]
   -> ExceptT TestError IO ()
-runZephyr repo entryPoints = do
+runZephyr coreLibArgRepo coreLibArgEntries = do
   outputDirExists <- lift $ doesDirectoryExist "dce-output"
   when outputDirExists $
     lift $ removeDirectoryRecursive "dce-output"
-  (ecZephyr, _, errZephyr) <- lift $ readProcessWithExitCode "zephyr" (["-O", "1"] ++ T.unpack `map` entryPoints) ""
-  when (ecZephyr /= ExitSuccess) (throwError $ ZephyrError repo ecZephyr errZephyr)
+  (ecZephyr, _, errZephyr) <- lift $ readProcessWithExitCode "stack" (["exec", "zephyr", "--", "-O", "1"] ++ T.unpack `map` coreLibArgEntries) ""
+  when (ecZephyr /= ExitSuccess) (throwError $ ZephyrError coreLibArgRepo ecZephyr errZephyr)
   
 
-runTestLib :: (Text, [Text], [Text]) -> ExceptT TestError IO ()
-runTestLib (repo, npmModules, entryPoints) = do
-  cloneRepo repo
-  npmInstall repo npmModules
-  bowerInstall repo
-  pursCompile repo
-  runZephyr repo entryPoints
+runTestLib :: CoreLibArg -> ExceptT TestError IO ()
+runTestLib (CoreLibArg {..}) = do
+  cloneRepo coreLibArgRepo
+  npmInstall coreLibArgRepo coreLibArgNpmModules
+  bowerInstall coreLibArgRepo
+  pursCompile coreLibArgRepo
+  runZephyr coreLibArgRepo coreLibArgEntries
 
-  (ecNode, stdNode , errNode) <- lift
+  (ecNode, stdNode, errNode) <- lift
     $ readProcessWithExitCode
         "node"
         [ "-e"
-        , "setTimeout(process.exit.bind(process , 0), 2000); require('./dce-output/Test.Main/index.js').main()"
+        , T.unpack $ maybe defaultJsCmd fst coreLibArgJsCmd
         ]
         ""
-  when (ecNode /= ExitSuccess) (throwError $ NodeError repo ecNode stdNode errNode)
+
+  when (ecNode /= ExitSuccess)
+    (throwError $ NodeError coreLibArgRepo ecNode stdNode errNode)
+  when (isJust coreLibArgJsCmd && Just (T.pack stdNode) /= (snd <$> coreLibArgJsCmd))
+    (throwError $ JsCmdError (fromJust $ snd <$> coreLibArgJsCmd) (T.pack stdNode))
+
+  where
+    defaultJsCmd = "setTimeout(process.exit.bind(process , 0), 2000); require('./dce-output/Test.Main/index.js').main()"
 
 runKarmaLib
   :: (Text, Text, Text)
@@ -245,7 +257,7 @@ runKarmaLib (repo, entry, main) = do
   when (ecKarma /= ExitSuccess) (throwError $ NodeError repo ecKarma stdKarma errKarma)
 
 assertRuns
-  :: (Text, [Text], [Text])
+  :: CoreLibArg
   -> Expectation
 assertRuns l = do
   res <- runExceptT . runTestLib $ l
@@ -265,7 +277,7 @@ assertRunsKarma l = do
 contribSpec :: Spec
 contribSpec = do
   context "test libraries" $ 
-    forM_ coreLibs $ \l@(repo, _, _) ->
+    forM_ coreLibs $ \l@(CoreLibArg repo  _ _ _) ->
         specify (T.unpack repo) $ assertRuns l
 
 karmaSpec :: Spec
