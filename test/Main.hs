@@ -48,6 +48,11 @@ coreLibs =
   , CoreLibTest "git@github.com:slamdata/purescript-aff" [] ["Test.Main.main"] Nothing
   , CoreLibTest "git@github.com:slamdata/purescript-matryoshka" [] ["Test.Main.main"] Nothing
   , CoreLibTest "git@github.com:slamdata/purescript-routing" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:slamdata/purescript-routing" []
+      ["Routing.matches"]
+      (Just
+        ( "console.log(Object.keys(require('./dce-output/Routing')))"
+        , "[ 'hashes', 'matches', 'matches\\'', 'matchWith', 'hashChanged' ]"))
   , CoreLibTest "git@github.com:slamdata/purescript-search" [] ["Test.Main.main"] Nothing
   , CoreLibTest
       "git@github.com:purescript/purescript-console"
@@ -55,7 +60,7 @@ coreLibs =
       ["Control.Monad.Eff.Console.log"]
       (Just
         ( "require('./dce-output/Control.Monad.Eff.Console').log('hello')()"
-        , "hello\n"))
+        , "hello"))
   , CoreLibTest "git@github.com:purescript/purescript-free" [] ["Test.Main.main"] Nothing
   , CoreLibTest "git@github.com:purescript/purescript-prelude" [] ["Test.Main.main"] Nothing
   , CoreLibTest
@@ -64,7 +69,23 @@ coreLibs =
       ["Test.Main.main", "Test.Main.safely", "Test.Main.safely2"]
       (Just
         ( "var r = require('./dce-output/Test.Main'); console.log(r.safely == r.safely2)"
-        , "true\n"))
+        , "true"))
+  , CoreLibTest "git@github.com:purescript/purescript-arrays" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-control" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-free" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-enums" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-generics-rep" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-maps" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-record" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-refs"
+      []
+      ["Control.Monad.Eff.Ref.newRef", "Control.Monad.Eff.Ref.readRef", "Control.Monad.Eff.Ref.writeRef"]
+      (Just 
+        ( "console.log(Object.keys(require('./dce-output/Control.Monad.Eff.Ref')))"
+        , "[ 'newRef', 'readRef', 'writeRef' ]"
+        ))
+  , CoreLibTest "git@github.com:purescript/purescript-strings" [] ["Test.Main.main"] Nothing
+  , CoreLibTest "git@github.com:purescript/purescript-transformers" [] ["Test.Main.main"] Nothing
   , CoreLibTest "git@github.com:purescript/purescript-quickcheck" [] ["Test.Main.main"] Nothing
   , CoreLibTest "git@github.com:purescript/purescript-unsafe-coerce" [] ["Test.Main.main"] Nothing
   , CoreLibTest "git@github.com:purescript-contrib/purescript-argonaut" [] ["Test.Main.main"] Nothing
@@ -219,7 +240,7 @@ runTestLib (CoreLibTest {..}) = do
 
   when (ecNode /= ExitSuccess)
     (throwError $ NodeError coreLibTestRepo ecNode stdNode errNode)
-  when (isJust coreLibTestJsCmd && Just (T.pack stdNode) /= (snd <$> coreLibTestJsCmd))
+  when (isJust coreLibTestJsCmd && Just (T.strip $ T.pack stdNode) /= (snd <$> coreLibTestJsCmd))
     (throwError $ JsCmdError (fromJust $ snd <$> coreLibTestJsCmd) (T.pack stdNode))
 
   where
