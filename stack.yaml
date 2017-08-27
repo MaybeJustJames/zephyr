@@ -39,7 +39,7 @@ packages:
 - '.'
 - location:
     git: git@github.com:coot/purescript.git
-    commit: a986e4fb896c0536ad2f301267bf765294269d5e
+    commit: 29ef583ae754ca963dc245e8a1b63445f1eeb90e
   extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
