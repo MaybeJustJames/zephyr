@@ -19,22 +19,48 @@ import qualified Data.Text as T
 import qualified Language.PureScript as P
 import           Language.PureScript.CoreFn
 import           Language.PureScript.Names
+import           Language.PureScript.PSString (PSString, decodeString)
+
+import           Language.PureScript.DCE.Utils
+
+type ModuleDict = M.Map ModuleName (ModuleT () Ann)
+
+-- |
+-- Information gethered from `CoreFn.Meta.IsTypeClassConstructor`
+type TypeClassDict = M.Map (Qualified (ProperName 'ClassName)) [(PSString, Maybe (Qualified (ProperName 'ClassName)))]
 
 data InstanceDict = InstanceDict
   { instTypeClass :: Qualified (ProperName 'ClassName)
   , instExpr :: Expr Ann
   }
-
--- |
+type Instances = M.Map (Qualified Ident) InstanceDict 
+-- ^
 -- Dictionary of all instances accross all modules.
 --
 -- It allows to efficiently check if an identifier used in an expression is an
 -- instance declaration.
-type Instances = M.Map (Qualified Ident) InstanceDict 
 
 isInstance :: Qualified Ident -> Instances -> Bool
 isInstance (Qualified Nothing _) _ = False
 isInstance ident dict = ident `M.member` dict
+
+-- |
+-- PureScript generates thes functions that access members of type class
+-- dictionaries.  This checks if an expression is such an abstraction.
+isInstanceMethod :: TypeClassDict -> Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
+isInstanceMethod tyd (Abs (_, _, Just ty, _) ident (Accessor _ mb (Var _ (Qualified Nothing ident'))))
+  | Just c <- mConstraint
+  , ident == ident'
+  -- check that the constraintClass has the given member
+  , Just True <- elem (mb, Nothing) <$> (P.constraintClass c `M.lookup` tyd)
+    = Just (P.constraintClass c)
+  where
+    mConstraint :: Maybe P.Constraint
+    mConstraint = getAlt $ P.everythingOnTypes (<|>) go ty
+      where
+      go (P.ConstrainedType c _) = Alt (Just c)
+      go _ = Alt Nothing
+isInstanceMethod _ _ = Nothing
 
 dceInstances :: forall t. [ModuleT t Ann] -> [ModuleT t Ann]
 dceInstances mods = undefined
@@ -59,15 +85,6 @@ dceInstances mods = undefined
           Nothing         -> Nothing)
       bs
   
--- | 
--- Check if an expression is constrained.
---
--- This requires types to be recoverable from [CoreFn
--- representation](https://github.com/coot/purescript/commit/29ef583ae754ca963dc245e8a1b63445f1eeb90e).
-isConstrained :: Expr Ann -> Bool
-isConstrained (Abs (_, _, Just (P.ConstrainedType _ _), _) _ _) = True
-isConstrained _ = False
-
 -- | returns type class instance of an instance declaration
 isInstanceOf :: Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
 isInstanceOf = getAlt . go
@@ -116,7 +133,9 @@ type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
 -- |
 -- Find all instance dependencies of an expression with a constrained type
 exprInstDeps :: Expr Ann -> [TypeClassInstDeps]
-exprInstDeps = undefined
+exprInstDeps e@(Abs _ ident expr)
+              | isConstrained e = undefined
+              | otherwise = []
 
 -- |
 -- For a given _constrained_ expression, we need to find out all the instances
