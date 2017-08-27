@@ -35,7 +35,7 @@ data DCEVertex a
   = BindVertex (Bind a)
   | ForeignVertex (Qualified Ident)
 
-dce :: forall t a. Show a => [ModuleT t a] -> [Qualified Ident] -> [ModuleT t a]
+dce :: forall t. [ModuleT t Ann] -> [Qualified Ident] -> [ModuleT t Ann]
 dce modules [] = modules
 dce modules entryPoints = do
     vs <- reachableList
@@ -43,17 +43,17 @@ dce modules entryPoints = do
     guard (getModuleName vs == Just moduleName)
     let
         -- | filter declarations preserving the order
-        decls :: [Bind a]
+        decls :: [Bind Ann]
         decls = filter filterByIdents moduleDecls
           where
           declIdents :: [Ident]
           declIdents = concatMap toIdents vs
 
-          toIdents :: (DCEVertex a, Key, [Key]) -> [Ident]
+          toIdents :: (DCEVertex Ann, Key, [Key]) -> [Ident]
           toIdents (BindVertex b, _, _) = bindIdents b
           toIdents _                    = []
 
-          filterByIdents :: Bind a -> Bool
+          filterByIdents :: Bind Ann -> Bool
           filterByIdents = any (`elem` declIdents) . bindIdents
 
         idents :: [Ident]
@@ -65,7 +65,7 @@ dce modules entryPoints = do
         mods :: [ModuleName]
         mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
 
-        imports :: [(a, ModuleName)]
+        imports :: [(Ann, ModuleName)]
         imports = filter ((`elem` mods) . snd) moduleImports
 
         foreigns :: [ForeignDeclT t]
@@ -77,17 +77,17 @@ dce modules entryPoints = do
   where
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
-  bindIdents :: Bind a -> [Ident]
+  bindIdents :: Bind Ann -> [Ident]
   bindIdents (NonRec _ i _) = [i]
   bindIdents (Rec l) = map (\((_, i), _) -> i) l
 
   -- | The Vertex set
-  verts :: [(DCEVertex a, Key, [Key])]
+  verts :: [(DCEVertex Ann, Key, [Key])]
   verts = do
       Module _ mn _ _ mf ds <- modules
       concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn . fst) `map` mf
     where
-    toVertices :: ModuleName -> Bind a -> [(DCEVertex a, Key, [Key])]
+    toVertices :: ModuleName -> Bind Ann -> [(DCEVertex Ann, Key, [Key])]
     toVertices mn b@(NonRec _ i e) = [(BindVertex b, mkQualified i mn, deps e)]
     toVertices mn b@(Rec bs) =
       let ks :: [(Key, [Key])]
@@ -95,7 +95,7 @@ dce modules entryPoints = do
       in map (\(k, ks') -> (BindVertex b, k, map fst ks ++ ks')) ks
 
     -- | Find dependencies of an expression
-    deps :: Expr a -> [Key]
+    deps :: Expr Ann -> [Key]
     deps = go
       where
         (_, go, _, _) = everythingOnValues (++)
@@ -105,11 +105,11 @@ dce modules entryPoints = do
           (const [])
 
         -- | Build graph only from qualified identifiers
-        onExpr :: Expr a -> [Key]
+        onExpr :: Expr Ann -> [Key]
         onExpr (Var _ i) = [i | isQualified i]
         onExpr _ = []
 
-        onBinder :: Binder a -> [Key]
+        onBinder :: Binder Ann -> [Key]
         onBinder (ConstructorBinder _ _ c _) = [fmap (Ident . runProperName) c]
         onBinder _ = []
 
@@ -121,13 +121,13 @@ dce modules entryPoints = do
     return (vertexForKey k)
 
   -- | The list of reachable vertices grouped by module name
-  reachableList :: [[(DCEVertex a, Key, [Key])]]
+  reachableList :: [[(DCEVertex Ann, Key, [Key])]]
   reachableList
     = groupBy (\(_, k1, _) (_, k2, _) -> getQual k1 == getQual k2)
     $ sortBy (\(_, k1, _) (_, k2, _) -> getQual k1 `compare` getQual k2)
     $ map keyForVertex (concatMap (reachable graph) entryPointVertices)
 
-  getModuleName :: [(DCEVertex a, Key, [Key])] -> Maybe ModuleName
+  getModuleName :: [(DCEVertex Ann, Key, [Key])] -> Maybe ModuleName
   getModuleName [] = Nothing
   getModuleName ((_, k, _) : _) = getQual k
 
