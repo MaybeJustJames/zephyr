@@ -17,6 +17,7 @@ library
   default-extensions: ConstraintKinds DataKinds DeriveFunctor EmptyDataDecls FlexibleContexts KindSignatures LambdaCase MultiParamTypeClasses NoImplicitPrelude PatternGuards PatternSynonyms RankNTypes RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections ViewPatterns
   exposed-modules:
     Language.PureScript.DCE
+    Language.PureScript.DCE.Utils
     Language.PureScript.DCE.TypeClassInstances
   build-depends:      
       aeson >=1.0 && <1.2
