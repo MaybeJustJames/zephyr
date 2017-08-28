@@ -3,7 +3,7 @@ module Language.PureScript.DCE.TypeClassInstances
   ( dceInstances ) where
 
 import           Prelude.Compat
-import           Control.Arrow ((&&&), first)
+import           Control.Arrow ((***), (&&&), first)
 import           Control.Applicative ((<|>))
 import           Control.Comonad.Cofree
 import           Control.Monad
@@ -19,7 +19,7 @@ import qualified Data.Text as T
 import qualified Language.PureScript as P
 import           Language.PureScript.CoreFn
 import           Language.PureScript.Names
-import           Language.PureScript.PSString (PSString, decodeString)
+import           Language.PureScript.PSString (PSString, decodeString, mkString)
 
 import           Language.PureScript.DCE.Utils
 
@@ -84,6 +84,20 @@ dceInstances mods = undefined
           Just tyClsName  -> Just (mkQualified i mn, InstanceDict tyClsName e)
           Nothing         -> Nothing)
       bs
+
+  typeClassDict :: TypeClassDict
+  typeClassDict = execState (sequence_ [onModule m | m <- mods])  M.empty
+    where
+    onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
+
+    onDecl :: ModuleName -> Bind Ann -> State TypeClassDict ()
+    onDecl mn (NonRec _ i e) = onExpr (mkQualified (identToProper i) mn) e
+    onDecl mn (Rec bs) = sequence_ $ (\((_, i), e) -> onExpr (mkQualified (identToProper i) mn) e) `map` bs
+
+    onExpr :: Qualified (ProperName 'ClassName) -> Expr Ann -> State TypeClassDict ()
+    onExpr ident (Abs (_, _, _, Just (IsTypeClassConstructor mbs)) _ _)
+      = modify (M.insert ident ((mkString *** id) `map` mbs))
+    onExpr _ _ = return ()
   
 -- | returns type class instance of an instance declaration
 isInstanceOf :: Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
@@ -134,7 +148,7 @@ type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
 -- Find all instance dependencies of an expression with a constrained type
 exprInstDeps :: Expr Ann -> [TypeClassInstDeps]
 exprInstDeps e@(Abs _ ident expr)
-              | isConstrained e = undefined
+              | Just (P.Constraint tc args _)  <- isConstrained e = undefined
               | otherwise = []
 
 -- |
