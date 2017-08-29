@@ -44,16 +44,44 @@ isInstance :: Qualified Ident -> Instances -> Bool
 isInstance (Qualified Nothing _) _ = False
 isInstance ident dict = ident `M.member` dict
 
+data TypeClassInstDepsData = TypeClassInstDepsData
+  { tciClassName :: Qualified (ProperName 'ClassName)
+  , tciName :: PSString
+  }
+type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
+-- ^
+-- Tree structure that encodes information about type
+-- class instance dependencies for constrained types.  Each constrain will map
+-- to one `TypeClassInstanceDeps`.
+--
+-- `tciClassName` is the _TypeClass_ name
+-- `tciName` is the field name of a member or parent type class used in
+-- generated code.  This information is available in
+-- `Language.PureScript.CoreFn.Meta` (see
+-- [corefn-typeclasses](https://github.com/coot/purescript/blob/corefn-typeclasses/src/Language/PureScript/CoreFn/Meta.hs#L29)
+-- branch of my `purescript` repo clone).
+
+type InstanceMethodsDict = M.Map (Qualified Ident) TypeClassInstDepsData
+-- ^ Dictionary of all instance method functions, e.g.
+-- ```
+-- Control.Applicative.apply
+-- ```
+-- will correspond to
+-- ```
+-- ```
+-- ("apply", Control.Applicative.Applicative)
+-- ```
+
 -- |
 -- PureScript generates thes functions that access members of type class
 -- dictionaries.  This checks if an expression is such an abstraction.
-isInstanceMethod :: TypeClassDict -> Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
-isInstanceMethod tyd (Abs (_, _, Just ty, _) ident (Accessor _ mb (Var _ (Qualified Nothing ident'))))
+isInstanceMethod :: TypeClassDict -> Expr Ann -> Maybe TypeClassInstDepsData
+isInstanceMethod tyd (Abs (_, _, Just ty, _) ident (Accessor _ acc (Var _ (Qualified Nothing ident'))))
   | Just c <- mConstraint
   , ident == ident'
   -- check that the constraintClass has the given member
-  , Just True <- elem (mb, Nothing) <$> (P.constraintClass c `M.lookup` tyd)
-    = Just (P.constraintClass c)
+  , Just True <- elem (acc, Nothing) <$> (P.constraintClass c `M.lookup` tyd)
+    = Just $ TypeClassInstDepsData (P.constraintClass c) acc
   where
     mConstraint :: Maybe P.Constraint
     mConstraint = getAlt $ P.everythingOnTypes (<|>) go ty
@@ -92,12 +120,25 @@ dceInstances mods = undefined
 
     onDecl :: ModuleName -> Bind Ann -> State TypeClassDict ()
     onDecl mn (NonRec _ i e) = onExpr (mkQualified (identToProper i) mn) e
-    onDecl mn (Rec bs) = sequence_ $ (\((_, i), e) -> onExpr (mkQualified (identToProper i) mn) e) `map` bs
+    onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified (identToProper i) mn) e) bs
 
     onExpr :: Qualified (ProperName 'ClassName) -> Expr Ann -> State TypeClassDict ()
     onExpr ident (Abs (_, _, _, Just (IsTypeClassConstructor mbs)) _ _)
-      = modify (M.insert ident ((mkString *** id) `map` mbs))
+      = modify (M.insert ident (first mkString `map` mbs))
     onExpr _ _ = return ()
+
+  instanceMethodsDict :: InstanceMethodsDict
+  instanceMethodsDict = execState (sequence_ [onModule m | m <- mods]) M.empty
+    where
+    onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
+
+    onDecl :: ModuleName -> Bind Ann -> State InstanceMethodsDict ()
+    onDecl mn (NonRec _ i e) = onExpr (mkQualified i mn) e
+    onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified i mn) e) bs
+
+    onExpr :: Qualified Ident -> Expr Ann -> State InstanceMethodsDict ()
+    onExpr i e | Just x <- isInstanceMethod typeClassDict e = modify (M.insert i x)
+               | otherwise                    = pure ()
   
 -- | returns type class instance of an instance declaration
 isInstanceOf :: Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
@@ -127,27 +168,10 @@ exprInstances d = go
   onExpr (Var _ i) | i `isInstance` d = [i]
   onExpr _ = []
 
-data TypeClassInstDepsData = TypeClassInstDeps
-  { tciClassName :: Qualified (ProperName 'ClassName)
-  , tciName :: Text
-  }
-type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
--- ^
--- Tree structure that encodes information about type
--- class instance dependencies for constrained types.  Each constrain will map
--- to one `TypeClassInstanceDeps`.
---
--- `tciClassName` is the _TypeClass_ name
--- `tciName` is the field name of a member or parent type class used in
--- generated code.  This information is available in
--- `Language.PureScript.CoreFn.Meta` (see
--- [corefn-typeclasses](https://github.com/coot/purescript/blob/corefn-typeclasses/src/Language/PureScript/CoreFn/Meta.hs#L29)
--- branch of my `purescript` repo clone).
-
 -- |
 -- Find all instance dependencies of an expression with a constrained type
-exprInstDeps :: Expr Ann -> [TypeClassInstDeps]
-exprInstDeps e@(Abs _ ident expr)
+exprInstDeps :: InstanceMethodsDict -> Expr Ann -> [TypeClassInstDeps]
+exprInstDeps imd e@(Abs _ ident expr)
               | Just (P.Constraint tc args _)  <- isConstrained e = undefined
               | otherwise = []
 
