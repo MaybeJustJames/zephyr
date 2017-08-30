@@ -33,7 +33,7 @@ data InstanceDict = InstanceDict
   { instTypeClass :: Qualified (ProperName 'ClassName)
   , instExpr :: Expr Ann
   }
-type Instances = M.Map (Qualified Ident) InstanceDict 
+type Instances = M.Map (Qualified Ident) InstanceDict
 -- ^
 -- Dictionary of all instances accross all modules.
 --
@@ -139,7 +139,7 @@ dceInstances mods = undefined
     onExpr :: Qualified Ident -> Expr Ann -> State InstanceMethodsDict ()
     onExpr i e | Just x <- isInstanceMethod typeClassDict e = modify (M.insert i x)
                | otherwise                    = pure ()
-  
+
 -- | returns type class instance of an instance declaration
 isInstanceOf :: Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
 isInstanceOf = getAlt . go
@@ -174,6 +174,14 @@ exprInstDeps :: InstanceMethodsDict -> Expr Ann -> [TypeClassInstDeps]
 exprInstDeps imd e@(Abs _ ident expr)
               | Just (P.Constraint tc args _)  <- isConstrained e = undefined
               | otherwise = []
+  where
+  -- like exprInstDeps but assuming that the expression we're at is an
+  -- instance method (e.g. `Control.Applicative.apply`)
+  buildTCDeps :: Expr Ann -> Maybe TypeClassInstDeps
+  buildTCDeps (App _ (Var _ instMethod) (Var _ (Qualified Nothing _)))
+    | Just d <- instMethod `M.lookup` imd
+    = Just (d :< Nothing)
+  buildTCDeps (App _ (Var _ instMethod) e) | isQualified instMethod = undefined
 
 -- |
 -- For a given _constrained_ expression, we need to find out all the instances
@@ -186,7 +194,7 @@ compDeps = undefined
 -- Find all instance dependencies of a class member instance.
 -- The result is an instance name with the list of all members of its class
 -- that are used.
--- 
+--
 -- This is much simpler that `exprInstDeps` since in member declarations,
 -- instances are mentioned directly.
 memberDeps :: Expr Ann -> [(Qualified Ident, [Ident])]
