@@ -17,6 +17,7 @@ import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Language.PureScript as P
+import qualified Language.PureScript.Constants as C
 import           Language.PureScript.CoreFn
 import           Language.PureScript.Names
 import           Language.PureScript.PSString (PSString, decodeString, mkString)
@@ -51,8 +52,9 @@ data TypeClassInstDepsData = TypeClassInstDepsData
 type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
 -- ^
 -- Tree structure that encodes information about type
--- class instance dependencies for constrained types.  Each constrain will map
--- to one `TypeClassInstanceDeps`.
+-- class instance dependencies for constrained types.  Each constraint will
+-- map to a list of `TypeClassInstanceDeps` (each call to a memeber will
+-- correspond to one `TypeClassInstDeps`).
 --
 -- `tciClassName` is the _TypeClass_ name
 -- `tciName` is the field name of a member or parent type class used in
@@ -170,18 +172,57 @@ exprInstances d = go
 
 -- |
 -- Find all instance dependencies of an expression with a constrained type
-exprInstDeps :: InstanceMethodsDict -> Expr Ann -> [TypeClassInstDeps]
-exprInstDeps imd e@(Abs _ ident expr)
+exprInstDeps :: TypeClassDict -> InstanceMethodsDict -> Expr Ann -> [TypeClassInstDeps]
+exprInstDeps tcd imd e@(Abs _ ident expr)
               | Just (P.Constraint tc args _)  <- isConstrained e = undefined
               | otherwise = []
   where
   -- like exprInstDeps but assuming that the expression we're at is an
-  -- instance method (e.g. `Control.Applicative.apply`)
+  -- instance memeber accessor (e.g. `Control.Applicative.apply`)
   buildTCDeps :: Expr Ann -> Maybe TypeClassInstDeps
   buildTCDeps (App _ (Var _ instMethod) (Var _ (Qualified Nothing _)))
     | Just d <- instMethod `M.lookup` imd
     = Just (d :< Nothing)
-  buildTCDeps (App _ (Var _ instMethod) e) | isQualified instMethod = undefined
+  buildTCDeps (App (_, _, Just ty, _) (Var _ instMethod) e)
+    | isQualified instMethod
+    , Just d <- instMethod `M.lookup` imd
+    -- read the type class from the type, this seems to be a valid assumption
+    -- that application of member accessor functions carry the constraint.
+    , Just (P.Constraint tcn _ _) <- getConstraint ty
+    = Just (go tcn d e)
+  buildTCDeps _ = Nothing
+
+  -- Recursive routine which builds dependency instance tree
+  -- start with type class name and the final member accessor
+  --
+  -- PureScript calls member accessor function first with apropriate
+  -- dictionary, from that call we know the final type class and its member,
+  -- here we scan the tree to build the path from the type class that
+  -- constraints this member accessor function to this final type class.
+  --
+  -- [ref](https://hackage.haskell.org/package/purescript-0.11.6/docs/src/Language-PureScript-Sugar-TypeClasses.html#desugarDecl)
+  go
+    -- initial type class name
+    :: Qualified (ProperName 'ClassName)
+    -- final TypeClassInstDepsData that is available from a member accessor
+    -- call that starts the AST tree that we are analyzing.
+    -> TypeClassInstDepsData
+    -> Expr Ann
+    -> TypeClassInstDeps
+  go tcn tcidd (App _ (Accessor _ accessor e) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
+    | Just ptcn <- superTypeClass tcn accessor
+    = TypeClassInstDepsData tcn accessor :< Just (go ptcn tcidd e)
+  go tcn tcidd (App _ (Accessor _ accessor (Var _ (Qualified Nothing _))) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
+    = TypeClassInstDepsData tcn accessor :< Just (tcidd :< Nothing)
+  go _ tcidd _ = tcidd :< Nothing
+
+  -- todo: it should error when accessing member rather than a parent instance
+  superTypeClass :: Qualified (ProperName 'ClassName) -> PSString -> Maybe (Qualified (ProperName 'ClassName))
+  superTypeClass tcn accessor
+    | Just mbrs <- tcn `M.lookup` tcd
+    = join $ getAlt $ foldMap (\(s, ptcn) -> if s == accessor then Alt (Just ptcn) else Alt Nothing) mbrs
+    | otherwise
+    = Nothing
 
 -- |
 -- For a given _constrained_ expression, we need to find out all the instances
