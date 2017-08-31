@@ -180,9 +180,6 @@ exprInstDeps tcd imd e@(Abs _ ident expr)
   -- like exprInstDeps but assuming that the expression we're at is an
   -- instance memeber accessor (e.g. `Control.Applicative.apply`)
   buildTCDeps :: Expr Ann -> Maybe TypeClassInstDeps
-  buildTCDeps (App _ (Var _ instMethod) (Var _ (Qualified Nothing _)))
-    | Just d <- instMethod `M.lookup` imd
-    = Just (d :< Nothing)
   buildTCDeps (App (_, _, Just ty, _) (Var _ instMethod) e)
     | isQualified instMethod
     , Just d <- instMethod `M.lookup` imd
