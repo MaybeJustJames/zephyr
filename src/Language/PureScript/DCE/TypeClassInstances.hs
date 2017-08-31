@@ -244,8 +244,51 @@ compDeps = undefined
 --
 -- This is much simpler that `exprInstDeps` since in member declarations,
 -- instances are mentioned directly.
-memberDeps :: Expr Ann -> [(Qualified Ident, [Ident])]
-memberDeps = undefined
+memberDeps :: TypeClassDict -> InstanceMethodsDict -> Expr Ann -> M.Map (Qualified Ident) [PSString]
+memberDeps tcDict imDict expr = execState (onExpr expr) M.empty
+  where
+
+  onExpr :: Expr Ann -> State (M.Map (Qualified Ident) [PSString]) ()
+  onExpr app@App{} = do
+    let (f, args) = unApp app []
+    case f of
+      (Var (_, _, _, Just (IsTypeClassConstructorApp cn)) _) ->
+        case cn `M.lookup` tcDict of
+          -- this should error
+          Nothing   -> return ()
+          -- Under assumption that CoreFn and the information in
+          -- `IsTypeClassConstructor` are in the same order
+          Just mbs  -> mapM_ fn (zip mbs args)
+      _ -> return ()
+
+    where
+    unApp :: Expr Ann -> [Expr Ann] -> (Expr Ann, [Expr Ann])
+    unApp (App _ val arg) args = unApp val (arg : args)
+    unApp other args = (other, args)
+
+    fn :: ((PSString, Maybe (Qualified (ProperName 'ClassName))), Expr Ann) -> State (M.Map (Qualified Ident) [PSString]) ()
+    fn ((acc, Just _), _) = return ()
+    fn ((acc, Nothing), e) = onApp e
+      where
+      updateState :: Qualified Ident -> PSString -> State (M.Map (Qualified Ident) [PSString]) ()
+      updateState i acc = modify (M.alter (Just . (acc :) . fromMaybe []) i)
+
+      onApp :: Expr Ann -> State (M.Map (Qualified Ident) [PSString]) ()
+      onApp (Accessor _ _ e) = onApp e
+      onApp (ObjectUpdate _ e es) = onApp e *> mapM_ (onApp . snd) es
+      onApp (Abs _ _ e) = onApp e
+      onApp app@App{}
+        | (Var _ accMemberF, Var _ instName : args) <- unApp app []
+        = do
+            case accMemberF `M.lookup` imDict of
+                Nothing -> return ()
+                Just (TypeClassInstDepsData _ acc) -> updateState instName acc
+            mapM_ onApp args
+      onApp (Var _ _) = return ()
+      onApp (Case _ es as) =
+        mapM_ onApp es *> mapM_ (mapCaseAlternativeM_ onApp) as
+      onApp (Let _ bs e) =
+        mapM_ (mapBindM_ onApp) bs *> onApp e
 
 -- |
 -- DCE not used instance members.
