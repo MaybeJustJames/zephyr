@@ -26,6 +26,11 @@ isConstrained :: Expr Ann -> Maybe P.Constraint
 isConstrained (Abs (_, _, Just (P.ConstrainedType c _), _) _ _) = Just c
 isConstrained _ = Nothing
 
+getConstraint :: P.Type -> Maybe P.Constraint
+getConstraint (P.ForAll _ ty _) = getConstraint ty
+getConstraint (P.ConstrainedType c _) = Just c
+getConstraint _ = Nothing
+
 -- |
 -- split epi from `Ident` to `ProperName 'ClassName`
 --
