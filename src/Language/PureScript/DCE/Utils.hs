@@ -1,6 +1,9 @@
 module Language.PureScript.DCE.Utils where
 
 import           Prelude.Compat
+import           Control.Arrow ((***))
+import           Control.Monad
+import qualified Data.Either (Either(..))
 import           Data.Maybe (Maybe(..))
 import qualified Language.PureScript as P
 import           Language.PureScript.CoreFn
@@ -38,3 +41,12 @@ getConstraint _ = Nothing
 -- `Language.PureScript.CoreFn.Desugar.properToIdent`
 identToProper :: Ident -> ProperName a
 identToProper = ProperName . runIdent
+
+mapCaseAlternativeM_ :: Monad m => (Expr Ann -> m ()) -> CaseAlternative Ann -> m ()
+mapCaseAlternativeM_ onExpr (CaseAlternative _ (Left gs))
+  = mapM_ (uncurry (*>) . (onExpr *** onExpr)) gs
+mapCaseAlternativeM_ onExpr (CaseAlternative _ (Right e)) = onExpr e
+
+mapBindM_ :: Monad m => (Expr Ann -> m ()) -> Bind Ann -> m ()
+mapBindM_ onExpr (NonRec a _ e) = onExpr e
+mapBindM_ onExpr (Rec bs) = mapM_ (onExpr . snd) bs

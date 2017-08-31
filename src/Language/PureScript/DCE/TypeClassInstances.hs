@@ -185,17 +185,8 @@ exprInstDeps tcDict imDict expr = execState (onExpr expr) []
     | otherwise
     = onExpr abs *> onExpr arg
   onExpr (Case _ es cs)
-    = mapM_ onExpr es *> mapM_ onCaseAlternative cs
-    where
-    onCaseAlternative :: CaseAlternative Ann -> State [TypeClassInstDeps] ()
-    onCaseAlternative (CaseAlternative _ (Left gs))
-      = mapM_ (uncurry (*>) . (onExpr *** onExpr)) gs
-    onCaseAlternative (CaseAlternative _ (Right e))
-      = onExpr e
-  onExpr (Let _ bs e) = mapM_ onBind bs *> onExpr e
-    where
-    onBind (NonRec a _ e) = onExpr e
-    onBind (Rec bs) = mapM_ (onExpr . snd) bs
+    = mapM_ onExpr es *> mapM_ (mapCaseAlternativeM_ onExpr) cs
+  onExpr (Let _ bs e) = mapM_ (mapBindM_ onExpr) bs *> onExpr e
   onExpr _ = return ()
 
   -- like exprInstDeps but assuming that the expression we're at is an
