@@ -173,19 +173,37 @@ exprInstances d = go
 -- |
 -- Find all instance dependencies of an expression with a constrained type
 exprInstDeps :: TypeClassDict -> InstanceMethodsDict -> Expr Ann -> [TypeClassInstDeps]
-exprInstDeps tcd imd e@(Abs _ ident expr)
-              | Just (P.Constraint tc args _)  <- isConstrained e = undefined
-              | otherwise = []
+exprInstDeps tcDict imDict expr = execState (onExpr expr) []
   where
+  onExpr :: Expr Ann -> State [TypeClassInstDeps] ()
+  onExpr (Abs _ _ e) = onExpr e
+  onExpr e@(App (_, _, Just ty, _) abs@(Var _ i) arg)
+    | isQualified i
+    , Just d <- i `M.lookup` imDict
+    , Just (P.Constraint tcn _ _) <- getConstraint ty
+    = modify (\deps -> maybe deps (: deps) (buildTCDeps tcn d e))
+    | otherwise
+    = onExpr abs *> onExpr arg
+  onExpr (Case _ es cs)
+    = mapM_ onExpr es *> mapM_ onCaseAlternative cs
+    where
+    onCaseAlternative :: CaseAlternative Ann -> State [TypeClassInstDeps] ()
+    onCaseAlternative (CaseAlternative _ (Left gs))
+      = mapM_ (uncurry (*>) . (onExpr *** onExpr)) gs
+    onCaseAlternative (CaseAlternative _ (Right e))
+      = onExpr e
+  onExpr (Let _ bs e) = mapM_ onBind bs *> onExpr e
+    where
+    onBind (NonRec a _ e) = onExpr e
+    onBind (Rec bs) = mapM_ (onExpr . snd) bs
+  onExpr _ = return ()
+
   -- like exprInstDeps but assuming that the expression we're at is an
   -- instance memeber accessor (e.g. `Control.Applicative.apply`)
-  buildTCDeps :: Expr Ann -> Maybe TypeClassInstDeps
-  buildTCDeps (App (_, _, Just ty, _) (Var _ instMethod) e)
-    | isQualified instMethod
-    , Just d <- instMethod `M.lookup` imd
+  buildTCDeps :: Qualified (ProperName 'ClassName) -> TypeClassInstDepsData -> Expr Ann -> Maybe TypeClassInstDeps
+  buildTCDeps tcn d (App _ (Var _ i) e)
     -- read the type class from the type, this seems to be a valid assumption
     -- that application of member accessor functions carry the constraint.
-    , Just (P.Constraint tcn _ _) <- getConstraint ty
     = Just (go tcn d e)
     where
     -- Recursive routine which builds dependency instance tree
@@ -211,12 +229,12 @@ exprInstDeps tcd imd e@(Abs _ ident expr)
     go tcn tcidd (App _ (Accessor _ accessor (Var _ (Qualified Nothing _))) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
       = TypeClassInstDepsData tcn accessor :< Just (tcidd :< Nothing)
     go _ tcidd _ = tcidd :< Nothing
-  buildTCDeps _ = Nothing
+  buildTCDeps _ _ _ = Nothing
 
   -- todo: it should error when accessing member rather than a parent instance
   superTypeClass :: Qualified (ProperName 'ClassName) -> PSString -> Maybe (Qualified (ProperName 'ClassName))
   superTypeClass tcn accessor
-    | Just mbrs <- tcn `M.lookup` tcd
+    | Just mbrs <- tcn `M.lookup` tcDict
     = join $ getAlt $ foldMap (\(s, ptcn) -> if s == accessor then Alt (Just ptcn) else Alt Nothing) mbrs
     | otherwise
     = Nothing
