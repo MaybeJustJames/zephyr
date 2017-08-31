@@ -190,31 +190,31 @@ exprInstDeps tcd imd e@(Abs _ ident expr)
     -- that application of member accessor functions carry the constraint.
     , Just (P.Constraint tcn _ _) <- getConstraint ty
     = Just (go tcn d e)
+    where
+    -- Recursive routine which builds dependency instance tree
+    -- start with type class name and the final member accessor
+    --
+    -- PureScript calls member accessor function first with apropriate
+    -- dictionary, from that call we know the final type class and its member,
+    -- here we scan the tree to build the path from the type class that
+    -- constraints this member accessor function to this final type class.
+    --
+    -- [ref](https://hackage.haskell.org/package/purescript-0.11.6/docs/src/Language-PureScript-Sugar-TypeClasses.html#desugarDecl)
+    go
+      -- initial type class name
+      :: Qualified (ProperName 'ClassName)
+      -- final TypeClassInstDepsData that is available from a member accessor
+      -- call that starts the AST tree that we are analyzing.
+      -> TypeClassInstDepsData
+      -> Expr Ann
+      -> TypeClassInstDeps
+    go tcn tcidd (App _ (Accessor _ accessor e) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
+      | Just ptcn <- superTypeClass tcn accessor
+      = TypeClassInstDepsData tcn accessor :< Just (go ptcn tcidd e)
+    go tcn tcidd (App _ (Accessor _ accessor (Var _ (Qualified Nothing _))) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
+      = TypeClassInstDepsData tcn accessor :< Just (tcidd :< Nothing)
+    go _ tcidd _ = tcidd :< Nothing
   buildTCDeps _ = Nothing
-
-  -- Recursive routine which builds dependency instance tree
-  -- start with type class name and the final member accessor
-  --
-  -- PureScript calls member accessor function first with apropriate
-  -- dictionary, from that call we know the final type class and its member,
-  -- here we scan the tree to build the path from the type class that
-  -- constraints this member accessor function to this final type class.
-  --
-  -- [ref](https://hackage.haskell.org/package/purescript-0.11.6/docs/src/Language-PureScript-Sugar-TypeClasses.html#desugarDecl)
-  go
-    -- initial type class name
-    :: Qualified (ProperName 'ClassName)
-    -- final TypeClassInstDepsData that is available from a member accessor
-    -- call that starts the AST tree that we are analyzing.
-    -> TypeClassInstDepsData
-    -> Expr Ann
-    -> TypeClassInstDeps
-  go tcn tcidd (App _ (Accessor _ accessor e) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
-    | Just ptcn <- superTypeClass tcn accessor
-    = TypeClassInstDepsData tcn accessor :< Just (go ptcn tcidd e)
-  go tcn tcidd (App _ (Accessor _ accessor (Var _ (Qualified Nothing _))) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
-    = TypeClassInstDepsData tcn accessor :< Just (tcidd :< Nothing)
-  go _ tcidd _ = tcidd :< Nothing
 
   -- todo: it should error when accessing member rather than a parent instance
   superTypeClass :: Qualified (ProperName 'ClassName) -> PSString -> Maybe (Qualified (ProperName 'ClassName))
