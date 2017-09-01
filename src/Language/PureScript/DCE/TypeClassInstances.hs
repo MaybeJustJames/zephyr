@@ -250,7 +250,7 @@ memberDeps tcDict maDict expr = execState (onExpr expr) M.empty
 
   onExpr :: Expr Ann -> State (M.Map (Qualified Ident) [PSString]) ()
   onExpr app@App{} = do
-    let (f, args) = unApp app []
+    let (f, args) = unApp app
     case f of
       (Var (_, _, _, Just (IsTypeClassConstructorApp cn)) _) ->
         case cn `M.lookup` tcDict of
@@ -262,10 +262,6 @@ memberDeps tcDict maDict expr = execState (onExpr expr) M.empty
       _ -> return ()
 
     where
-    unApp :: Expr Ann -> [Expr Ann] -> (Expr Ann, [Expr Ann])
-    unApp (App _ val arg) args = unApp val (arg : args)
-    unApp other args = (other, args)
-
     fn :: ((PSString, Maybe (Qualified (ProperName 'ClassName))), Expr Ann) -> State (M.Map (Qualified Ident) [PSString]) ()
     fn ((acc, Just _), _) = return ()
     fn ((acc, Nothing), e) = onApp e
@@ -278,7 +274,7 @@ memberDeps tcDict maDict expr = execState (onExpr expr) M.empty
       onApp (ObjectUpdate _ e es) = onApp e *> mapM_ (onApp . snd) es
       onApp (Abs _ _ e) = onApp e
       onApp app@App{}
-        | (Var _ accMemberF, Var _ instName : args) <- unApp app []
+        | (Var _ accMemberF, Var _ instName : args) <- unApp app
         = do
             case accMemberF `M.lookup` maDict of
                 Nothing -> return ()

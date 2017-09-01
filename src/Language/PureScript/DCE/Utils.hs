@@ -50,3 +50,24 @@ mapCaseAlternativeM_ onExpr (CaseAlternative _ (Right e)) = onExpr e
 mapBindM_ :: Monad m => (Expr Ann -> m ()) -> Bind Ann -> m ()
 mapBindM_ onExpr (NonRec a _ e) = onExpr e
 mapBindM_ onExpr (Rec bs) = mapM_ (onExpr . snd) bs
+
+bindIdents :: Bind Ann -> [Ident]
+bindIdents (NonRec _ i _) = [i]
+bindIdents (Rec bs) = (snd . fst) `map` bs
+
+unApp :: Expr Ann -> (Expr Ann, [Expr Ann])
+unApp e = go e []
+  where
+  go (App _ val arg) args = go val (arg : args)
+  go other args = (other, args)
+
+-- Check that `Qualified Ident` is shadowed by an identifier.
+isShadowed :: ModuleName -> Qualified Ident -> Ident -> Bool
+isShadowed mn qi@(Qualified mn' i') i =
+  if Just mn == mn' || isUnqualified qi
+    then i == i'
+    else False
+
+identFromVal :: Expr Ann -> Maybe (Qualified Ident)
+identFromVal (Var _ i) = Just i
+identFromVal _ = Nothing
