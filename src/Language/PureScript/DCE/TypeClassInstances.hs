@@ -63,7 +63,7 @@ type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
 -- [corefn-typeclasses](https://github.com/coot/purescript/blob/corefn-typeclasses/src/Language/PureScript/CoreFn/Meta.hs#L29)
 -- branch of my `purescript` repo clone).
 
-type InstanceMethodsDict = M.Map (Qualified Ident) TypeClassInstDepsData
+type MemberAccessorDict = M.Map (Qualified Ident) TypeClassInstDepsData
 -- ^ Dictionary of all instance method functions, e.g.
 -- ```
 -- Control.Applicative.apply
@@ -77,8 +77,8 @@ type InstanceMethodsDict = M.Map (Qualified Ident) TypeClassInstDepsData
 -- |
 -- PureScript generates thes functions that access members of type class
 -- dictionaries.  This checks if an expression is such an abstraction.
-isInstanceMethod :: TypeClassDict -> Expr Ann -> Maybe TypeClassInstDepsData
-isInstanceMethod tyd (Abs (_, _, Just ty, _) ident (Accessor _ acc (Var _ (Qualified Nothing ident'))))
+isMemberAccessor :: TypeClassDict -> Expr Ann -> Maybe TypeClassInstDepsData
+isMemberAccessor tyd (Abs (_, _, Just ty, _) ident (Accessor _ acc (Var _ (Qualified Nothing ident'))))
   | Just c <- mConstraint
   , ident == ident'
   -- check that the constraintClass has the given member
@@ -90,7 +90,7 @@ isInstanceMethod tyd (Abs (_, _, Just ty, _) ident (Accessor _ acc (Var _ (Quali
       where
       go (P.ConstrainedType c _) = Alt (Just c)
       go _ = Alt Nothing
-isInstanceMethod _ _ = Nothing
+isMemberAccessor _ _ = Nothing
 
 dceInstances :: forall t. [ModuleT t Ann] -> [ModuleT t Ann]
 dceInstances mods = undefined
@@ -129,17 +129,17 @@ dceInstances mods = undefined
       = modify (M.insert ident (first mkString `map` mbs))
     onExpr _ _ = return ()
 
-  instanceMethodsDict :: InstanceMethodsDict
+  instanceMethodsDict :: MemberAccessorDict
   instanceMethodsDict = execState (sequence_ [onModule m | m <- mods]) M.empty
     where
     onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
 
-    onDecl :: ModuleName -> Bind Ann -> State InstanceMethodsDict ()
+    onDecl :: ModuleName -> Bind Ann -> State MemberAccessorDict ()
     onDecl mn (NonRec _ i e) = onExpr (mkQualified i mn) e
     onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified i mn) e) bs
 
-    onExpr :: Qualified Ident -> Expr Ann -> State InstanceMethodsDict ()
-    onExpr i e | Just x <- isInstanceMethod typeClassDict e = modify (M.insert i x)
+    onExpr :: Qualified Ident -> Expr Ann -> State MemberAccessorDict ()
+    onExpr i e | Just x <- isMemberAccessor typeClassDict e = modify (M.insert i x)
                | otherwise                    = pure ()
 
 -- | returns type class instance of an instance declaration
@@ -172,14 +172,14 @@ exprInstances d = go
 
 -- |
 -- Find all instance dependencies of an expression with a constrained type
-exprInstDeps :: TypeClassDict -> InstanceMethodsDict -> Expr Ann -> [TypeClassInstDeps]
-exprInstDeps tcDict imDict expr = execState (onExpr expr) []
+exprInstDeps :: TypeClassDict -> MemberAccessorDict -> Expr Ann -> [TypeClassInstDeps]
+exprInstDeps tcDict maDict expr = execState (onExpr expr) []
   where
   onExpr :: Expr Ann -> State [TypeClassInstDeps] ()
   onExpr (Abs _ _ e) = onExpr e
   onExpr e@(App (_, _, Just ty, _) abs@(Var _ i) arg)
     | isQualified i
-    , Just d <- i `M.lookup` imDict
+    , Just d <- i `M.lookup` maDict
     , Just (P.Constraint tcn _ _) <- getConstraint ty
     = modify (\deps -> maybe deps (: deps) (buildTCDeps tcn d e))
     | otherwise
@@ -244,8 +244,8 @@ compDeps = undefined
 --
 -- This is much simpler that `exprInstDeps` since in member declarations,
 -- instances are mentioned directly.
-memberDeps :: TypeClassDict -> InstanceMethodsDict -> Expr Ann -> M.Map (Qualified Ident) [PSString]
-memberDeps tcDict imDict expr = execState (onExpr expr) M.empty
+memberDeps :: TypeClassDict -> MemberAccessorDict -> Expr Ann -> M.Map (Qualified Ident) [PSString]
+memberDeps tcDict maDict expr = execState (onExpr expr) M.empty
   where
 
   onExpr :: Expr Ann -> State (M.Map (Qualified Ident) [PSString]) ()
@@ -280,7 +280,7 @@ memberDeps tcDict imDict expr = execState (onExpr expr) M.empty
       onApp app@App{}
         | (Var _ accMemberF, Var _ instName : args) <- unApp app []
         = do
-            case accMemberF `M.lookup` imDict of
+            case accMemberF `M.lookup` maDict of
                 Nothing -> return ()
                 Just (TypeClassInstDepsData _ acc) -> updateState instName acc
             mapM_ onApp args
