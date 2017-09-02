@@ -1,5 +1,5 @@
--- Tree shaking of type classes instance methods on CoreFn
-module Language.PureScript.DCE.TypeClassInstances
+-- Tree shaking of type classes instance members on CoreFn
+module Language.PureScript.DCE.Instances
   ( dceInstances ) where
 
 import           Prelude.Compat
