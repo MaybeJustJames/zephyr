@@ -3,7 +3,7 @@ module Language.PureScript.DCE.TypeClassInstances
   ( dceInstances ) where
 
 import           Prelude.Compat
-import           Control.Arrow ((***), (&&&), first)
+import           Control.Arrow ((&&&), first)
 import           Control.Applicative ((<|>))
 import           Control.Comonad.Cofree
 import           Control.Monad
@@ -34,6 +34,7 @@ data InstanceDict = InstanceDict
   { instTypeClass :: Qualified (ProperName 'ClassName)
   , instExpr :: Expr Ann
   }
+  deriving (Show)
 type Instances = M.Map (Qualified Ident) InstanceDict
 -- ^
 -- Dictionary of all instances accross all modules.
@@ -49,6 +50,7 @@ data TypeClassInstDepsData = TypeClassInstDepsData
   { tciClassName :: Qualified (ProperName 'ClassName)
   , tciName :: PSString
   }
+  deriving (Show)
 type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
 -- ^
 -- Tree structure that encodes information about type
