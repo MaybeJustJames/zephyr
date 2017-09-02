@@ -3,15 +3,16 @@ module Language.PureScript.DCE.Instances
   ( dceInstances ) where
 
 import           Prelude.Compat
-import           Control.Arrow ((&&&), first)
+import           Control.Arrow ((&&&), (***), first, second)
 import           Control.Applicative ((<|>))
 import           Control.Comonad.Cofree
 import           Control.Monad
 import           Control.Monad.State
+import           Control.Monad.Writer
 import           Data.Graph
-import           Data.List (any, elem, filter, groupBy, sortBy)
+import           Data.List (any, elem, elemIndex, find, filter, groupBy, null, sortBy, splitAt)
 import qualified Data.Map.Strict as M
-import           Data.Maybe (Maybe(..), catMaybes, fromMaybe, mapMaybe)
+import           Data.Maybe (Maybe(..), catMaybes, fromJust, fromMaybe, mapMaybe)
 import           Data.Monoid (Alt(Alt), getAlt)
 import qualified Data.Set as S
 import           Data.Text (Text)
@@ -198,7 +199,7 @@ exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
   onApp (_, _, Just ty, _) (Var _ i) arg
     | Just (P.Constraint tcn _ _) <- getConstraint ty
     , Just d <- i `M.lookup` maDict
-    = modify ( (buildTCDeps tcn d arg) : )
+    = modify (buildTCDeps tcn d arg : )
     | otherwise
     = return ()
 
@@ -260,13 +261,113 @@ exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
     | otherwise
     = Nothing
 
+resolveInstances
+  -- | bind to be analysed
+  :: (Bind Ann, Maybe ModuleName)
+  -- | for an expression of a let expression, for top level module binds,
+  -- | there is no expression
+  -> Maybe (Expr Ann)
+  -- | List of bind to search through, for top level module binds include
+  -- | module name.
+  -> [(Bind Ann, Maybe ModuleName)]
+  -- | List of all resolutions (instances passed as arguments)
+  -> [[Qualified Ident]]
+resolveInstances (b, mn) me bs = flip execState [] $ do
+    (es, rd) <- case b of
+      NonRec _ i e -> return ([(Qualified mn i, e)], M.empty)
+      Rec rbs -> do
+        let es = (first (Qualified mn . snd) `map` rbs)
+            rd = execState (buildRecDeps es) M.empty
+        return (es, rd)
+    return ()
+  where
+    buildRecDeps
+      :: [(Qualified Ident, Expr Ann)]
+      -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+    buildRecDeps exprs =
+        let qitc = second getTCArgs `map` exprs
+        in mapM_ (mapRecArgs qitc) exprs
+      where
+        getTCArgs :: Expr Ann -> [Ident]
+        getTCArgs = fromMaybe [] . onAbs fn
+          where
+            fn (_, _, Just ty, _) _ is = 
+              let cs = getConstraints ty
+              in take (length cs) is
+            fn _ _ _ = []
+
+        mapRecArgs
+          :: [(Qualified Ident, [Ident])]
+          -- ^ qualifier identifiers (with arument list) to be searched for
+          -> (Qualified Ident, Expr Ann)
+          -- ^ searched abstraction
+          -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+        mapRecArgs is (i, abs) = fn abs
+          where
+            fn = everywhereOnAppUncurriedAndBindM_ (onApp is i) (onCase is) (onLet is)
+
+            absTCArgs = getTCArgs abs
+
+            onApp
+              :: [(Qualified Ident, [Ident])]
+              -> Qualified Ident
+              -> Ann
+              -> Expr Ann
+              -> [Expr Ann]
+              -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+            onApp [] _ _ _ _ = return ()
+            onApp qis qi _ (Var _ fqi) args
+              | Just (_, tcArgs) <- find ((== fqi) . fst) qis
+              = let mp = map (mapArg . fromJust . unVar) (take (length tcArgs) args)
+                in modify
+                    (M.alter
+                      ( Just
+                      . M.alter (Just . (mp : ) . fromMaybe []) fqi
+                      . fromMaybe M.empty
+                      )
+                      qi
+                    )
+
+            mapArg :: Qualified Ident -> Either Int (Qualified Ident)
+            mapArg qi@(Qualified (Just _) _) = Right qi
+            mapArg (Qualified Nothing i) = Left $ fromJust (i `elemIndex` absTCArgs)
+            
+            onCase
+              :: [(Qualified Ident, [Ident])]
+              -> Ann
+              -> [Expr Ann]
+              -> [CaseAlternative Ann]
+              -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+            onCase qis _ es cs = mapM_ fn es *> mapM_ go cs
+              where
+              go :: CaseAlternative Ann -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+              go (CaseAlternative bs r) = 
+                let bis = concatMap (map (Qualified Nothing) . binderIdents) bs
+                    qis' = filter ((`notElem` bis) . fst) qis
+                    f = everywhereOnAppUncurriedAndBindM_ (onApp qis' i) (onCase qis') (onLet qis')
+                in case r of
+                    Left es -> mapM_ (uncurry (*>) . (f *** f)) es
+                    Right e -> f e
+
+            onLet
+              :: [(Qualified Ident, [Ident])]
+              -> Ann
+              -> [Bind Ann]
+              -> Expr Ann
+              -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+            onLet qis _ bs e =
+              let bis = concatMap (map (Qualified Nothing) . bindIdents) bs
+                  qis' = filter ((`notElem` bis) . fst) qis
+                  f = everywhereOnAppUncurriedAndBindM_ (onApp qis' i) (onCase qis') (onLet qis')
+              in mapM_ (mapBindM_ f) bs *> f e
+
 -- |
 -- For a given _constrained_ expression, we need to find out all the instances
 -- that are used.  For each set of them we pair them with the corresponsing
 -- `TypeClassInstDeps` and compute all memebers that are used.
 --
 -- impl hint: use `resolveInstances` and `exprInstDeps` to get the first argument
-compDeps :: [(InstanceData, TypeClassInstDeps)] -> [(Qualified Ident, [PSString])]
+compDeps :: [(InstancesDict, TypeClassInstDeps)] -> [(Qualified Ident, [PSString])]
 compDeps = undefined
 
 -- |
