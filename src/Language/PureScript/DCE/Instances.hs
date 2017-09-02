@@ -30,21 +30,55 @@ type ModuleDict = M.Map ModuleName (ModuleT () Ann)
 -- Information gethered from `CoreFn.Meta.IsTypeClassConstructor`
 type TypeClassDict = M.Map (Qualified (ProperName 'ClassName)) [(PSString, Maybe (Qualified (ProperName 'ClassName)))]
 
-data InstanceDict = InstanceDict
+buildTypeClassDict :: forall t. [ModuleT t Ann] -> TypeClassDict
+buildTypeClassDict mods = execState (sequence_ [onModule m | m <- mods])  M.empty
+  where
+  onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
+
+  onDecl :: ModuleName -> Bind Ann -> State TypeClassDict ()
+  onDecl mn (NonRec _ i e) = onExpr (mkQualified (identToProper i) mn) e
+  onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified (identToProper i) mn) e) bs
+
+  onExpr :: Qualified (ProperName 'ClassName) -> Expr Ann -> State TypeClassDict ()
+  onExpr ident (Abs (_, _, _, Just (IsTypeClassConstructor mbs)) _ _)
+    = modify (M.insert ident (first mkString `map` mbs))
+  onExpr _ _ = return ()
+
+data InstanceData = InstanceData
   { instTypeClass :: Qualified (ProperName 'ClassName)
   , instExpr :: Expr Ann
   }
   deriving (Show)
-type Instances = M.Map (Qualified Ident) InstanceDict
+type InstancesDict = M.Map (Qualified Ident) InstanceData
 -- ^
 -- Dictionary of all instances accross all modules.
 --
 -- It allows to efficiently check if an identifier used in an expression is an
 -- instance declaration.
 
-isInstance :: Qualified Ident -> Instances -> Bool
+isInstance :: Qualified Ident -> InstancesDict -> Bool
 isInstance (Qualified Nothing _) _ = False
 isInstance ident dict = ident `M.member` dict
+
+buildInstancesDict :: [ModuleT t Ann] -> InstancesDict
+buildInstancesDict mods = M.fromList (instancesInModule `concatMap` mods)
+  where
+  instancesInModule :: ModuleT t Ann -> [(Qualified Ident, InstanceData)]
+  instancesInModule =
+      concatMap instanceDicts
+    . uncurry zip
+    . first repeat
+    . (moduleName &&& moduleDecls)
+
+  instanceDicts :: (ModuleName, Bind Ann) -> [(Qualified Ident, InstanceData)]
+  instanceDicts (mn, NonRec _ i e)  | Just tyClsName <- isInstanceOf e = [(mkQualified i mn, InstanceData tyClsName e)]
+                                    | otherwise = []
+  instanceDicts (mn, Rec bs) = mapMaybe
+    (\((_, i), e) ->
+      case isInstanceOf e of
+        Just tyClsName  -> Just (mkQualified i mn, InstanceData tyClsName e)
+        Nothing         -> Nothing)
+    bs
 
 data TypeClassInstDepsData = TypeClassInstDepsData
   { tciClassName :: Qualified (ProperName 'ClassName)
@@ -94,55 +128,30 @@ isMemberAccessor tyd (Abs (_, _, Just ty, _) ident (Accessor _ acc (Var _ (Quali
       go _ = Alt Nothing
 isMemberAccessor _ _ = Nothing
 
+buildMemberAccessorDict :: TypeClassDict -> [ModuleT t Ann] -> MemberAccessorDict
+buildMemberAccessorDict typeClassDict mods = execState (sequence_ [onModule m | m <- mods]) M.empty
+  where
+  onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
+
+  onDecl :: ModuleName -> Bind Ann -> State MemberAccessorDict ()
+  onDecl mn (NonRec _ i e) = onExpr (mkQualified i mn) e
+  onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified i mn) e) bs
+
+  onExpr :: Qualified Ident -> Expr Ann -> State MemberAccessorDict ()
+  onExpr i e | Just x <- isMemberAccessor typeClassDict e = modify (M.insert i x)
+             | otherwise                    = pure ()
+
 dceInstances :: forall t. [ModuleT t Ann] -> [ModuleT t Ann]
 dceInstances mods = undefined
   where
-  instanceDict :: Instances
-  instanceDict = M.fromList (instancesInModule `concatMap` mods)
-    where
-    instancesInModule :: ModuleT t Ann -> [(Qualified Ident, InstanceDict)]
-    instancesInModule =
-        concatMap instanceDicts
-      . uncurry zip
-      . first repeat
-      . (moduleName &&& moduleDecls)
-
-    instanceDicts :: (ModuleName, Bind Ann) -> [(Qualified Ident, InstanceDict)]
-    instanceDicts (mn, NonRec _ i e)  | Just tyClsName <- isInstanceOf e = [(mkQualified i mn, InstanceDict tyClsName e)]
-                                      | otherwise = []
-    instanceDicts (mn, Rec bs) = mapMaybe
-      (\((_, i), e) ->
-        case isInstanceOf e of
-          Just tyClsName  -> Just (mkQualified i mn, InstanceDict tyClsName e)
-          Nothing         -> Nothing)
-      bs
+  instancesDict :: InstancesDict
+  instancesDict = buildInstancesDict mods
 
   typeClassDict :: TypeClassDict
-  typeClassDict = execState (sequence_ [onModule m | m <- mods])  M.empty
-    where
-    onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
+  typeClassDict = buildTypeClassDict mods
 
-    onDecl :: ModuleName -> Bind Ann -> State TypeClassDict ()
-    onDecl mn (NonRec _ i e) = onExpr (mkQualified (identToProper i) mn) e
-    onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified (identToProper i) mn) e) bs
-
-    onExpr :: Qualified (ProperName 'ClassName) -> Expr Ann -> State TypeClassDict ()
-    onExpr ident (Abs (_, _, _, Just (IsTypeClassConstructor mbs)) _ _)
-      = modify (M.insert ident (first mkString `map` mbs))
-    onExpr _ _ = return ()
-
-  instanceMethodsDict :: MemberAccessorDict
-  instanceMethodsDict = execState (sequence_ [onModule m | m <- mods]) M.empty
-    where
-    onModule (Module _ mn _ _ _ decls) = sequence_ [ onDecl mn decl | decl <- decls ]
-
-    onDecl :: ModuleName -> Bind Ann -> State MemberAccessorDict ()
-    onDecl mn (NonRec _ i e) = onExpr (mkQualified i mn) e
-    onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified i mn) e) bs
-
-    onExpr :: Qualified Ident -> Expr Ann -> State MemberAccessorDict ()
-    onExpr i e | Just x <- isMemberAccessor typeClassDict e = modify (M.insert i x)
-               | otherwise                    = pure ()
+  memberAccessorDict :: MemberAccessorDict
+  memberAccessorDict = buildMemberAccessorDict typeClassDict mods
 
 -- | returns type class instance of an instance declaration
 isInstanceOf :: Expr Ann -> Maybe (Qualified (ProperName 'ClassName))
@@ -163,7 +172,7 @@ typeClassNames _ = []
 
 -- |
 -- Get all instance names used by an expression.
-exprInstances :: Instances -> Expr Ann -> [Qualified Ident]
+exprInstances :: InstancesDict -> Expr Ann -> [Qualified Ident]
 exprInstances d = go
   where
   (_, go, _, _) = everythingOnValues (++) (const []) onExpr (const []) (const [])
@@ -236,7 +245,7 @@ exprInstDeps tcDict maDict expr = execState (onExpr expr) []
 -- For a given _constrained_ expression, we need to find out all the instances
 -- that are used.  For each set of them we pair them with the corresponsing
 -- `TypeClassInstDeps` and compute all memeber that are used.
-compDeps :: [(InstanceDict, TypeClassInstDeps)] -> [(Qualified Ident, [Ident])]
+compDeps :: [(InstanceData, TypeClassInstDeps)] -> [(Qualified Ident, [Ident])]
 compDeps = undefined
 
 -- |
