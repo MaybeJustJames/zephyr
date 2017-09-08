@@ -261,8 +261,10 @@ exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
 -- |
 -- For a given _constrained_ expression, we need to find out all the instances
 -- that are used.  For each set of them we pair them with the corresponsing
--- `TypeClassInstDeps` and compute all memeber that are used.
-compDeps :: [(InstanceData, TypeClassInstDeps)] -> [(Qualified Ident, [Ident])]
+-- `TypeClassInstDeps` and compute all memebers that are used.
+--
+-- impl hint: use `resolveInstances` and `exprInstDeps` to get the first argument
+compDeps :: [(InstanceData, TypeClassInstDeps)] -> [(Qualified Ident, [PSString])]
 compDeps = undefined
 
 -- |
