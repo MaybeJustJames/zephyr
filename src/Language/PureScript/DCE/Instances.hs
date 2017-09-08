@@ -183,59 +183,76 @@ exprInstances d = go
 
 -- |
 -- Find all instance dependencies of an expression with a constrained type
-exprInstDeps :: TypeClassDict -> MemberAccessorDict -> Expr Ann -> [TypeClassInstDeps]
-exprInstDeps tcDict maDict expr = execState (onExpr expr) []
+-- The identifier is the argument name used passed to access the instances,
+-- e.g. `dictMonad` or `Data.Maybe.maybeMonad`.
+exprInstDeps
+  :: TypeClassDict
+  -> MemberAccessorDict
+  -> Expr Ann
+  -> [(Qualified Ident, TypeClassInstDeps)]
+exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
   where
-  onExpr :: Expr Ann -> State [TypeClassInstDeps] ()
-  onExpr (Abs _ _ e) = onExpr e
-  onExpr e@(App (_, _, Just ty, _) abs@(Var _ i) arg)
-    | isQualified i
+  onApp :: Ann -> Expr Ann -> Expr Ann -> State [(Qualified Ident, TypeClassInstDeps)] ()
+  onApp (_, _, Just ty, _) (Var _ i) arg
+    | Just (P.Constraint tcn _ _) <- getConstraint ty
     , Just d <- i `M.lookup` maDict
-    , Just (P.Constraint tcn _ _) <- getConstraint ty
-    = modify (\deps -> maybe deps (: deps) (buildTCDeps tcn d e))
+    = modify ( (buildTCDeps tcn d arg) : )
     | otherwise
-    = onExpr abs *> onExpr arg
-  onExpr (Case _ es cs)
-    = mapM_ onExpr es *> mapM_ (mapCaseAlternativeM_ onExpr) cs
-  onExpr (Let _ bs e) = mapM_ (mapBindM_ onExpr) bs *> onExpr e
-  onExpr _ = return ()
+    = return ()
 
-  -- like exprInstDeps but assuming that the expression we're at is an
-  -- instance memeber accessor (e.g. `Control.Applicative.apply`)
-  buildTCDeps :: Qualified (ProperName 'ClassName) -> TypeClassInstDepsData -> Expr Ann -> Maybe TypeClassInstDeps
-  buildTCDeps tcn d (App _ (Var _ i) e)
-    -- read the type class from the type, this seems to be a valid assumption
-    -- that application of member accessor functions carry the constraint.
-    = Just (go tcn d e)
-    where
-    -- Recursive routine which builds dependency instance tree
-    -- start with type class name and the final member accessor
-    --
-    -- PureScript calls member accessor function first with apropriate
-    -- dictionary, from that call we know the final type class and its member,
-    -- here we scan the tree to build the path from the type class that
-    -- constraints this member accessor function to this final type class.
-    --
-    -- [ref](https://hackage.haskell.org/package/purescript-0.11.6/docs/src/Language-PureScript-Sugar-TypeClasses.html#desugarDecl)
-    go
-      -- initial type class name
+  -- |
+  -- Recursive routine which builds dependency instance tree
+  -- starting with a type class name and the final member accessor.
+  --
+  -- PureScript calls member accessor function with apropriate
+  -- dictionary, from that call we know the final type class and its member,
+  -- here we scan the tree to build the path from the type class that
+  -- constraints this member accessor function to this final type class.
+  --
+  -- [ref](https://hackage.haskell.org/package/purescript-0.11.6/docs/src/Language-PureScript-Sugar-TypeClasses.html#desugarDecl)
+  buildTCDeps
       :: Qualified (ProperName 'ClassName)
-      -- final TypeClassInstDepsData that is available from a member accessor
-      -- call that starts the AST tree that we are analyzing.
+      -- ^ initial type class name
       -> TypeClassInstDepsData
+      -- ^ final TypeClassInstDepsData that is available from a member accessor
+      -- call that starts the AST tree that we are analyzing.
       -> Expr Ann
-      -> TypeClassInstDeps
-    go tcn tcidd (App _ (Accessor _ accessor e) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
-      | Just ptcn <- superTypeClass tcn accessor
-      = TypeClassInstDepsData tcn accessor :< Just (go ptcn tcidd e)
-    go tcn tcidd (App _ (Accessor _ accessor (Var _ (Qualified Nothing _))) (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
-      = TypeClassInstDepsData tcn accessor :< Just (tcidd :< Nothing)
-    go _ tcidd _ = tcidd :< Nothing
-  buildTCDeps _ _ _ = Nothing
+      -> (Qualified Ident, TypeClassInstDeps)
+  -- ```
+  -- App
+  --   (Var Data.Show.show)
+  --   (Var Data.Show.showInt)
+  -- ```
+  buildTCDeps _ tcidd (Var _ i) = (i, tcidd :< Nothing)
+  -- ```
+  -- class A a where
+  --   memeber :: a -> Int
+  --
+  -- class A a <= B a
+  -- class B a <= C a
+  --
+  -- mem :: forall a. C a => a -> Int
+  -- mem = member
+  -- App
+  --    (Var Main.a)
+  --    (App
+  --      (Accessor B0
+  --        (App
+  --          (Accessor A0
+    --          (Var dictA))
+  --          (Var Prim.undefined)))
+  --      (Var Prim.undefined)
+  -- ```
+  buildTCDeps tcn tcidd
+      (App _ (Accessor _ accessor e)
+      (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
+      | Just ptcn <- superTCName tcn accessor
+      = let (i, tail) = buildTCDeps ptcn tcidd e
+        in (i, TypeClassInstDepsData tcn accessor :< Just tail)
+  buildTCDeps _ _ _ = undefined -- should be an error
 
-  -- todo: it should error when accessing member rather than a parent instance
-  superTypeClass :: Qualified (ProperName 'ClassName) -> PSString -> Maybe (Qualified (ProperName 'ClassName))
-  superTypeClass tcn accessor
+  superTCName :: Qualified (ProperName 'ClassName) -> PSString -> Maybe (Qualified (ProperName 'ClassName))
+  superTCName tcn accessor
     | Just mbrs <- tcn `M.lookup` tcDict
     = join $ getAlt $ foldMap (\(s, ptcn) -> if s == accessor then Alt (Just ptcn) else Alt Nothing) mbrs
     | otherwise
