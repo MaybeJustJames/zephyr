@@ -89,8 +89,8 @@ type TypeClassInstDeps = Cofree Maybe TypeClassInstDepsData
 -- ^
 -- Tree structure that encodes information about type
 -- class instance dependencies for constrained types.  Each constraint will
--- map to a list of `TypeClassInstanceDeps` (each call to a memeber will
--- correspond to one `TypeClassInstDeps`).
+-- map to a list of `TypeClassInstanceDeps` (each call of a memeber accessor
+-- function will correspond to one `TypeClassInstDeps`).
 --
 -- `tciClassName` is the _TypeClass_ name
 -- `tciName` is the field name of a member or parent type class used in
@@ -138,8 +138,10 @@ buildMemberAccessorDict typeClassDict mods = execState (sequence_ [onModule m | 
   onDecl mn (Rec bs) = mapM_ (\((_, i), e) -> onExpr (mkQualified i mn) e) bs
 
   onExpr :: Qualified Ident -> Expr Ann -> State MemberAccessorDict ()
-  onExpr i e | Just x <- isMemberAccessor typeClassDict e = modify (M.insert i x)
-             | otherwise                    = pure ()
+  onExpr i e | Just x <- isMemberAccessor typeClassDict e
+             = modify (M.insert i x)
+             | otherwise            
+             = pure ()
 
 dceInstances :: forall t. [ModuleT t Ann] -> [ModuleT t Ann]
 dceInstances mods = undefined
