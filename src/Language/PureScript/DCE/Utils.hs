@@ -71,3 +71,17 @@ isShadowed mn qi@(Qualified mn' i') i =
 identFromVal :: Expr Ann -> Maybe (Qualified Ident)
 identFromVal (Var _ i) = Just i
 identFromVal _ = Nothing
+
+everywhereOnAppM_ :: Monad m => (Ann -> Expr Ann -> Expr Ann -> m ()) -> Expr Ann -> m ()
+everywhereOnAppM_ onApp = \case
+  Literal _ (ArrayLiteral es) -> mapM_ (everywhereOnAppM_ onApp) es
+  Literal _ (ObjectLiteral es) -> mapM_ (everywhereOnAppM_ onApp . snd) es
+  Literal _ _ -> return ()
+  Constructor _ _ _ _ -> return ()
+  Accessor _ _ e -> everywhereOnAppM_ onApp e
+  ObjectUpdate _ e es -> everywhereOnAppM_ onApp e *> mapM_ (everywhereOnAppM_ onApp . snd) es
+  Abs _ _ e -> everywhereOnAppM_ onApp e
+  App ann e1 e2 -> onApp ann e1 e2
+  Var _ _ -> return ()
+  Case _ es cs -> mapM_ (everywhereOnAppM_ onApp) es *> mapM_ (mapCaseAlternativeM_ (everywhereOnAppM_ onApp)) cs
+  Let _ bs e -> mapM_ (mapBindM_ (everywhereOnAppM_ onApp)) bs *> everywhereOnAppM_ onApp e
