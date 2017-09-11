@@ -2,15 +2,17 @@
 module Language.PureScript.DCE.Instances
   ( dceInstances ) where
 
-import           Prelude.Compat
+import           Prelude.Compat hiding ((!!))
 import           Control.Arrow ((&&&), (***), first, second)
 import           Control.Applicative ((<|>))
 import           Control.Comonad.Cofree
 import           Control.Monad
 import           Control.Monad.State
+import           Control.Monad.Except
 import           Control.Monad.Writer
 import           Data.Graph
 import           Data.List (any, elem, elemIndex, find, filter, groupBy, null, sortBy, splitAt)
+import           Data.List.Safe ((!!))
 import qualified Data.Map.Strict as M
 import           Data.Maybe (Maybe(..), catMaybes, fromJust, fromMaybe, mapMaybe)
 import           Data.Monoid (Alt(Alt), getAlt)
@@ -23,6 +25,7 @@ import           Language.PureScript.CoreFn
 import           Language.PureScript.Names
 import           Language.PureScript.PSString (PSString, decodeString, mkString)
 
+import           Language.PureScript.DCE.Errors
 import           Language.PureScript.DCE.Utils
 
 type ModuleDict = M.Map ModuleName (ModuleT () Ann)
@@ -189,17 +192,21 @@ exprInstances d = go
 -- The identifier is the argument name used passed to access the instances,
 -- e.g. `dictMonad` or `Data.Maybe.maybeMonad`.
 exprInstDeps
-  :: TypeClassDict
+  :: forall m
+   . (MonadError DceError m)
+  => TypeClassDict
   -> MemberAccessorDict
   -> Expr Ann
-  -> [(Qualified Ident, TypeClassInstDeps)]
-exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
+  -> m [(Qualified Ident, TypeClassInstDeps)]
+exprInstDeps tcDict maDict expr = execStateT (everywhereOnAppM_ onApp expr) []
   where
-  onApp :: Ann -> Expr Ann -> Expr Ann -> State [(Qualified Ident, TypeClassInstDeps)] ()
+  onApp :: Ann -> Expr Ann -> Expr Ann -> StateT [(Qualified Ident, TypeClassInstDeps)] m ()
   onApp (_, _, Just ty, _) (Var _ i) arg
     | Just (P.Constraint tcn _ _) <- getConstraint ty
     , Just d <- i `M.lookup` maDict
-    = modify (buildTCDeps tcn d arg : )
+    = do
+      tcd <- lift (buildTCDeps tcn d arg)
+      modify (tcd :)
     | otherwise
     = return ()
 
@@ -220,13 +227,13 @@ exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
       -- ^ final TypeClassInstDepsData that is available from a member accessor
       -- call that starts the AST tree that we are analyzing.
       -> Expr Ann
-      -> (Qualified Ident, TypeClassInstDeps)
+      -> m (Qualified Ident, TypeClassInstDeps)
   -- ```
   -- App
   --   (Var Data.Show.show)
   --   (Var Data.Show.showInt)
   -- ```
-  buildTCDeps _ tcidd (Var _ i) = (i, tcidd :< Nothing)
+  buildTCDeps _ tcidd (Var _ i) = return (i, tcidd :< Nothing)
   -- ```
   -- class A a where
   --   memeber :: a -> Int
@@ -248,22 +255,28 @@ exprInstDeps tcDict maDict expr = execState (everywhereOnAppM_ onApp expr) []
   -- ```
   buildTCDeps tcn tcidd
       (App _ (Accessor _ accessor e)
-      (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
-      | Just ptcn <- superTCName tcn accessor
-      = let (i, tail) = buildTCDeps ptcn tcidd e
-        in (i, TypeClassInstDepsData tcn accessor :< Just tail)
-  buildTCDeps _ _ _ = undefined -- should be an error
+        (Var _ (Qualified (Just C.Prim) (Ident "undefined"))))
+      = do
+        ptcn <- superTCName tcn accessor
+        (i, tail) <- buildTCDeps ptcn tcidd e
+        return (i, TypeClassInstDepsData tcn accessor :< Just tail)
+  buildTCDeps _ _ _ = throwError (CoreFnUnexpectedNode "buildTCDeps: expected Var or App node")
 
-  superTCName :: Qualified (ProperName 'ClassName) -> PSString -> Maybe (Qualified (ProperName 'ClassName))
+  superTCName :: Qualified (ProperName 'ClassName) -> PSString -> m (Qualified (ProperName 'ClassName))
   superTCName tcn accessor
     | Just mbrs <- tcn `M.lookup` tcDict
-    = join $ getAlt $ foldMap (\(s, ptcn) -> if s == accessor then Alt (Just ptcn) else Alt Nothing) mbrs
+    = maybe (throwError (NotTypeClassMember tcn accessor)) return
+      $ join
+      $ getAlt
+      $ foldMap (\(s, ptcn) -> if s == accessor then Alt (Just ptcn) else Alt Nothing) mbrs
     | otherwise
-    = Nothing
+    = throwError (TypeClassNotFound tcn)
 
-resolveInstances
+resolveTCArgs
+  :: forall m
+   . (MonadError DceError m)
   -- | bind to be analysed
-  :: (Bind Ann, Maybe ModuleName)
+  => (Bind Ann, Maybe ModuleName)
   -- | for an expression of a let expression, for top level module binds,
   -- | there is no expression
   -> Maybe (Expr Ann)
@@ -271,19 +284,20 @@ resolveInstances
   -- | module name.
   -> [(Bind Ann, Maybe ModuleName)]
   -- | List of all resolutions (instances passed as arguments)
-  -> [[Qualified Ident]]
-resolveInstances (b, mn) me bs = flip execState [] $ do
+  -> m [[Qualified Ident]]
+resolveTCArgs (b, mn) me bs = do
     (es, rd) <- case b of
       NonRec _ i e -> return ([(Qualified mn i, e)], M.empty)
       Rec rbs -> do
         let es = (first (Qualified mn . snd) `map` rbs)
-            rd = execState (buildRecDeps es) M.empty
+        rd <- execStateT (buildRecDeps es) M.empty
         return (es, rd)
-    return ()
+    -- TODO: FINISH
+    return []
   where
     buildRecDeps
       :: [(Qualified Ident, Expr Ann)]
-      -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+      -> StateT (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) m ()
     buildRecDeps exprs =
         let qitc = second getTCArgs `map` exprs
         in mapM_ (mapRecArgs qitc) exprs
@@ -301,7 +315,7 @@ resolveInstances (b, mn) me bs = flip execState [] $ do
           -- ^ qualifier identifiers (with arument list) to be searched for
           -> (Qualified Ident, Expr Ann)
           -- ^ searched abstraction
-          -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+          -> StateT (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) m ()
         mapRecArgs is (i, abs) = fn abs
           where
             fn = everywhereOnAppUncurriedAndBindM_ (onApp is i) (onCase is) (onLet is)
@@ -314,7 +328,7 @@ resolveInstances (b, mn) me bs = flip execState [] $ do
               -> Ann
               -> Expr Ann
               -> [Expr Ann]
-              -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+              -> StateT (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) m ()
             onApp [] _ _ _ _ = return ()
             onApp qis qi _ (Var _ fqi) args
               | Just (_, tcArgs) <- find ((== fqi) . fst) qis
@@ -337,10 +351,10 @@ resolveInstances (b, mn) me bs = flip execState [] $ do
               -> Ann
               -> [Expr Ann]
               -> [CaseAlternative Ann]
-              -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+              -> StateT (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) m ()
             onCase qis _ es cs = mapM_ fn es *> mapM_ go cs
               where
-              go :: CaseAlternative Ann -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+              go :: CaseAlternative Ann -> StateT (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) m ()
               go (CaseAlternative bs r) = 
                 let bis = concatMap (map (Qualified Nothing) . binderIdents) bs
                     qis' = filter ((`notElem` bis) . fst) qis
@@ -354,7 +368,7 @@ resolveInstances (b, mn) me bs = flip execState [] $ do
               -> Ann
               -> [Bind Ann]
               -> Expr Ann
-              -> State (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) ()
+              -> StateT (M.Map (Qualified Ident) (M.Map (Qualified Ident) [[Either Int (Qualified Ident)]])) m ()
             onLet qis _ bs e =
               let bis = concatMap (map (Qualified Nothing) . bindIdents) bs
                   qis' = filter ((`notElem` bis) . fst) qis
@@ -365,10 +379,51 @@ resolveInstances (b, mn) me bs = flip execState [] $ do
 -- For a given _constrained_ expression, we need to find out all the instances
 -- that are used.  For each set of them we pair them with the corresponsing
 -- `TypeClassInstDeps` and compute all memebers that are used.
---
--- impl hint: use `resolveInstances` and `exprInstDeps` to get the first argument
-compDeps :: [(InstancesDict, TypeClassInstDeps)] -> [(Qualified Ident, [PSString])]
-compDeps = undefined
+computeDeps
+  :: InstancesDict
+  -> M.Map (Qualified (ProperName 'ClassName)) (Expr Ann)
+  -- ^ TCs dict
+  -> Qualified Ident
+  -- ^ qualified instance name of a type class TC
+  -> TypeClassInstDeps
+  -- ^ TypeClassInstDeps data for TC
+  -> [(Qualified Ident, PSString)]
+  -- ^ instance names and their members
+computeDeps instsDict tcsDict qi = foldr fn []
+  where
+
+  fn :: TypeClassInstDepsData -> [(Qualified Ident, PSString)] -> [(Qualified Ident, PSString)]
+  fn (TypeClassInstDepsData tcn accessor) x = x
+
+  -- todo: could be done when creating TCs dict
+  argsTCMap
+    :: Expr Ann
+    -- ^ TC expr
+    -> [PSString] 
+    -- ^ map from argument indexes to accessors
+  argsTCMap = fromMaybe [] . onAbs fn
+    where
+    fn :: Ann -> Expr Ann -> [Ident] -> [PSString]
+    fn _ _ = map (mkString . runIdent)
+    -- currently PureScript uses the same names for arguments as accessors
+
+  resolveChildInstance
+    :: Qualified Ident
+    -- ^ parent TC instance
+    -> PSString
+    -- ^ accessor
+    -> Maybe (Qualified Ident)
+    -- ^ instance name
+  resolveChildInstance qi accessor = do
+    InstanceData tcn instExpr <- qi `M.lookup` instsDict
+    tce <- tcn `M.lookup` tcsDict
+    ix <- accessor `elemIndex` argsTCMap tce
+    let (_, args) = unApp instExpr
+    arg <- args !! ix
+    case arg of
+      Abs _ _ (Var _ qi) -> Just qi
+      _ -> Nothing
+      
 
 -- |
 -- Find all instance dependencies of a class member instance.
