@@ -17,6 +17,9 @@ library
   default-extensions: ConstraintKinds DataKinds DeriveFunctor EmptyDataDecls FlexibleContexts KindSignatures LambdaCase MultiParamTypeClasses NoImplicitPrelude PatternGuards PatternSynonyms RankNTypes RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections ViewPatterns
   exposed-modules:
     Language.PureScript.DCE
+    Language.PureScript.DCE.Errors
+    Language.PureScript.DCE.Instances
+    Language.PureScript.DCE.Utils
   build-depends:      
       aeson >=1.0 && <1.2
     , ansi-terminal >=0.6.2 && <0.7
@@ -25,9 +28,11 @@ library
     , bytestring
     , containers
     , directory >=1.2.3
+    , free >= 4.12 && <5
     , filepath
     , Glob >=0.7 && <0.9
     , language-javascript >=0.6.0.9 && <0.7
+    , listsafe >=0.1.0.0 && <0.2.0.0
     , mtl >=2.1.0 && <2.3.0
     , optparse-applicative >=0.13.0
     , purescript
@@ -51,9 +56,11 @@ executable zephyr
     , bytestring
     , containers
     , directory >=1.2.3
+    , free >= 4.12 && <5
     , filepath
     , Glob >=0.7 && <0.9
     , language-javascript >=0.6.0.9 && <0.7
+    , listsafe >=0.1.0.0 && <0.2.0.0
     , mtl >=2.1.0 && <2.3.0
     , optparse-applicative >=0.13.0
     , purescript
@@ -78,6 +85,7 @@ test-suite zephyr-test
     , bytestring
     , containers
     , directory >=1.2.3
+    , free >= 4.12 && <5
     , filepath
     , Glob >=0.7 && <0.9
     , hspec
