@@ -163,20 +163,20 @@ readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.rea
   addPath f = either (Left . incl) Right
     where incl (l,r) = (f,l,r)
 
-data DCEError
-  = DCEParseErrors [Text]
-  | DCEInputNotDirectory FilePath
-  | DCENoInputs FilePath
+data DCEAppError
+  = ParseErrors [Text]
+  | InputNotDirectory FilePath
+  | NoInputs FilePath
 
-formatDCEError :: DCEError -> Text
-formatDCEError (DCEParseErrors errs)
+formatDCEAppError :: DCEAppError -> Text
+formatDCEAppError (ParseErrors errs)
   = "error: failed parsing:\n  " <> (T.intercalate "\n  " errs)
-formatDCEError (DCENoInputs path)
+formatDCEAppError (NoInputs path)
   = "error: inputs found under \"" <> T.pack path <> "\" directory"
-formatDCEError (DCEInputNotDirectory path)
+formatDCEAppError (InputNotDirectory path)
   = "error: directory \"" <> T.pack path <> "\" does not exist"
 
-dceCommand :: DCEOptions -> ExceptT DCEError IO ()
+dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
 dceCommand opts = do
     let entryPoints = runEntryPoint <$> (dceEntryPoints opts)
         cfnGlb = compile "**/corefn.json"
@@ -184,15 +184,15 @@ dceCommand opts = do
 
     inptDirExist <- lift $ doesDirectoryExist (dceInputDir opts)
     when (not inptDirExist) $
-      throwError (DCEInputNotDirectory (dceInputDir opts))
+      throwError (InputNotDirectory (dceInputDir opts))
 
     let errs = lefts inpts
     when (not . null $ errs) $
-      throwError (DCEParseErrors $ formatErr `map` errs)
+      throwError (ParseErrors $ formatErr `map` errs)
 
     let mPursVer = fmap fst . listToMaybe . rights $ inpts
     when (isNothing mPursVer) $
-      throwError (DCENoInputs (dceInputDir opts) )
+      throwError (NoInputs (dceInputDir opts) )
     let pursVer = fromJust mPursVer
 
     let mods = P.dce (snd `map` rights inpts) entryPoints
@@ -275,7 +275,7 @@ runDCECommand :: DCEOptions -> IO ()
 runDCECommand opts = do
   res <- runExceptT (dceCommand opts)
   case res of
-    Left e  -> (T.hPutStrLn stderr . formatDCEError $ e) *> exitFailure
+    Left e  -> (T.hPutStrLn stderr . formatDCEAppError $ e) *> exitFailure
     Right _ -> exitSuccess
 
 command :: Opts.Parser (IO ())
