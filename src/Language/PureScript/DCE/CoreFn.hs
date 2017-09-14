@@ -59,7 +59,7 @@ dce modules entryPoints = do
           where
             reachableSet = foldr' (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks) S.empty vs
 
-    return $ Module moduleComments moduleName imports exports foreigns (dceExpr `map` decls)
+    return $ Module moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
   where
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
@@ -70,7 +70,7 @@ dce modules entryPoints = do
   -- | The Vertex set
   verts :: [(DCEVertex a, Key, [Key])]
   verts = do
-      Module _ mn _ _ mf ds <- modules
+      Module _ mn _ _ _ mf ds <- modules
       concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn . fst) `map` mf
     where
     toVertices :: ModuleName -> Bind a -> [(DCEVertex a, Key, [Key])]

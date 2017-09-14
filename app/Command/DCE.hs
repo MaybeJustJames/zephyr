@@ -209,7 +209,7 @@ dceCommand opts = do
       printWarningsAndErrors False False makeWarnings makeErrors
       where
       codegen :: CoreFn.ModuleT () CoreFn.Ann -> SupplyT P.Make ()
-      codegen m@(CoreFn.Module _ mn _ _ mf _) = do
+      codegen m@(CoreFn.Module _ mn _ _ _ mf _) = do
         let foreignInclude =
               if null mf
                 then Nothing
@@ -252,7 +252,7 @@ dceCommand opts = do
 
     runDumpCoreFn :: Version -> [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> IO ()
     runDumpCoreFn pursVer mods outputDir = do
-      let jsons = (\m@(CoreFn.Module _ mn _ _ _ _ )
+      let jsons = (\m@(CoreFn.Module _ mn _ _ _ _ _ )
             -> ( outputDir </> T.unpack (P.runModuleName mn) </> "corefn.json"
                , A.object [ (P.runModuleName mn, CoreFn.moduleToJSON pursVer m) ]
                )) <$> mods
