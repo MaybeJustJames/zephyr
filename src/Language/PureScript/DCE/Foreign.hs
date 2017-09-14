@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Language.PureScript.DCE.Foreign 
   ( dceForeignModule ) where
 
@@ -26,8 +28,8 @@ import           Language.PureScript.Names
 -- | foldr over `JSCommaList`
 foldrJSCommaList :: (a -> b -> b) -> JSCommaList a -> b -> b
 foldrJSCommaList _ JSLNil b = b
-foldrJSCommaList fn (JSLOne a) b = fn a b
-foldrJSCommaList fn (JSLCons as _ a) b = foldrJSCommaList fn as (fn a b)
+foldrJSCommaList fn (JSLOne a) !b = fn a b
+foldrJSCommaList fn (JSLCons as _ a) !b = foldrJSCommaList fn as (fn a b)
 
 -- | Filter export statements in a foreign module.  This is not 100% safe.  It
 -- might remove declarations that are used somewhere in the foreign module
