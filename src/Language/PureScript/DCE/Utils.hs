@@ -32,10 +32,10 @@ everywhereOnValuesM f g h mh = (f', g')
   f' (NonRec a name e) = NonRec a name <$> g' e >>= f
   f' (Rec es) = Rec <$> traverse (traverse g) es >>= f
      
-  g' (Literal ann e) = Literal ann <$> (handleLiteral g' e) >>= g
-  g' (Accessor ann prop e) = Accessor ann prop <$> (g' e) >>= g
+  g' (Literal ann e) = Literal ann <$> handleLiteral g' e >>= g
+  g' (Accessor ann prop e) = Accessor ann prop <$> g' e >>= g
   g' (ObjectUpdate ann obj vs) = ObjectUpdate ann <$> g' obj <*> traverse (traverse g') vs >>= g
-  g' (Abs ann name e) = Abs ann name <$> (g' e) >>= g
+  g' (Abs ann name e) = Abs ann name <$> g' e >>= g
   g' app@(App ann v1 v2) = App ann <$> g' v1 <*> g' v2 >>= g
   g' (Case ann vs alts) = do
     vs' <- traverse g' vs
@@ -58,8 +58,8 @@ everywhereOnValuesM f g h mh = (f', g')
     gn (e1, e2) = (,) <$> g' e1 <*> g' e2
 
   handleLiteral :: (b -> m b) -> Literal b -> m (Literal b)
-  handleLiteral i (ArrayLiteral ls) = ArrayLiteral <$> (traverse i ls)
-  handleLiteral i (ObjectLiteral ls) = ObjectLiteral <$> (traverse (traverse i) ls)
+  handleLiteral i (ArrayLiteral ls) = ArrayLiteral <$> traverse i ls
+  handleLiteral i (ObjectLiteral ls) = ObjectLiteral <$> traverse (traverse i) ls
   handleLiteral _ other = return other
 
 unAnn :: Expr a -> Expr ()
@@ -73,7 +73,7 @@ unAnn (Var _ i) = Var () i
 unAnn (Case _ es cs) = Case () (unAnn `map` es) (gn `map` cs)
   where
   gn :: CaseAlternative a -> CaseAlternative ()
-  gn (CaseAlternative bs es) = CaseAlternative (unAnnBinder `map` bs) ((map (unAnn *** unAnn)) +++ unAnn $ es)
+  gn (CaseAlternative bs es) = CaseAlternative (unAnnBinder `map` bs) (map (unAnn *** unAnn) +++ unAnn $ es)
 
   unAnnBinder :: Binder a -> Binder ()
   unAnnBinder (NullBinder _) = NullBinder ()

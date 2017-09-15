@@ -40,43 +40,36 @@ dceCase mods = map go mods
 
   onExpr (Case ann es cs) = do
     s <- get
-    return $ onCase s ann es cs
-  onExpr l@Let {} = modify (drop 1) *> return l
-  onExpr e = do
-    s <- get
-    case eval s e of
-      Just l  -> do
-        return $ Literal (extractAnn e) l
-      Nothing -> return e
-
-  onCase :: Stack -> Ann -> [Expr Ann] -> [CaseAlternative Ann] -> Expr Ann
-  onCase s ann es cs =
     let x = all isJust es'
-    in if all isJust es'
+        es' = map (eval s) es
+        cs1 = getFirst $ foldMap (fndCase (fromJust `map` es')) cs
+        cs2 = filter (fltBinders es' . caseAlternativeBinders) cs
+    return (if all isJust es'
       then case cs1 of
         Nothing -> Case ann es []
         Just (CaseAlternative bs (Right e))
           | not (any binds bs) -> e
           | otherwise -> Case ann es (maybeToList cs1)
         Just (CaseAlternative bs (Left gs))
-          -> Case ann es [CaseAlternative bs (Left $ fltGuards gs)]
-      else Case ann es cs2
+          -> Case ann es [CaseAlternative bs (Left $ fltGuards s gs)]
+      else Case ann es cs2)
     where
-    es' = map (eval s) es
-
-    cs1 = getFirst $ foldMap (fndCase (fromJust `map` es')) cs
-    cs2 = filter (fltBinders es' . caseAlternativeBinders) cs
-
-    fltGuards :: [(Guard Ann, Expr Ann)] -> [(Guard Ann, Expr Ann)]
-    fltGuards [] = []
-    fltGuards ((g,e):es) = case eval s g of
+    fltGuards :: Stack -> [(Guard Ann, Expr Ann)] -> [(Guard Ann, Expr Ann)]
+    fltGuards _ [] = []
+    fltGuards s ((g,e):es) = case eval s g of
       Nothing 
-        -> (g,e) : fltGuards es
+        -> (g,e) : fltGuards s es
       Just t
-        | t `eqLit` (BooleanLiteral True)  
-        ->  (Literal (extractAnn g) (BooleanLiteral True), e) : []
+        | t `eqLit` BooleanLiteral True  
+        ->  [(Literal (extractAnn g) (BooleanLiteral True), e)]
         | otherwise -- guard expression must evaluate to a Boolean
-        -> fltGuards es
+        -> fltGuards s es
+  onExpr l@Let {} = modify (drop 1) *> return l
+  onExpr e = do
+    s <- get
+    case eval s e of
+      Just l  -> return $ Literal (extractAnn e) l
+      Nothing -> return e
 
   eval :: Stack -> Expr Ann -> Maybe (Literal (Expr Ann))
   eval s (Var _ (Qualified Nothing i)) = 
@@ -108,7 +101,7 @@ dceCase mods = map go mods
           , Qualified (Just mn) (Ident "eqUnit")
           , Qualified (Just mn) (Ident "eqVoid")
           ]
-        then BooleanLiteral <$> liftA2 (eqLit) (eval s e1) (eval s e2)
+        then BooleanLiteral <$> liftA2 eqLit (eval s e1) (eval s e2)
         else Nothing
     where
       mn = ModuleName [ProperName "Data", ProperName "Eq"]
@@ -123,7 +116,7 @@ dceCase mods = map go mods
   eqLit _ _ = False
 
   fltBinders :: [Maybe (Literal (Expr Ann))] -> [Binder Ann] -> Bool
-  fltBinders ((Just l1):ts) ((LiteralBinder _ l2):bs) = l1 `eqLit` l2 && fltBinders ts bs
+  fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) = l1 `eqLit` l2 && fltBinders ts bs
   fltBinders _ _ = True
 
   fndCase :: [Literal (Expr Ann)] -> CaseAlternative Ann -> First (CaseAlternative Ann)
@@ -135,8 +128,8 @@ dceCase mods = map go mods
     matches :: [Literal (Expr Ann)] -> [Binder Ann] -> Bool
     matches [] _ = True
     matches _ [] = True
-    matches (t:ts) ((LiteralBinder _ t'):bs) = t `eqLit` t' && matches ts bs
-    matches (t:ts) ((NamedBinder _ _ (LiteralBinder _ t')):bs) = t `eqLit` t' && matches ts bs
+    matches (t:ts) (LiteralBinder _ t' : bs) = t `eqLit` t' && matches ts bs
+    matches (t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
     matches (_:ts) (_:bs) = matches ts bs
 
   binds :: Binder Ann -> Bool
@@ -149,7 +142,7 @@ dceCase mods = map go mods
   binds (LiteralBinder _ (ObjectLiteral bs)) = any (binds . snd) bs
   binds (VarBinder _ _) = True
   binds (ConstructorBinder _ _ _ bs) = any binds bs
-  binds (NamedBinder _ _ _) = True
+  binds NamedBinder{} = True
 
   findExpr :: ModuleName -> Ident -> [ModuleT t Ann] -> Maybe (Expr Ann)
   findExpr mn i mods = join $ getFirst . foldMap fIdent . concatMap unBind . moduleDecls <$> mod

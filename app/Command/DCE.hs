@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
@@ -100,13 +99,13 @@ outputDirectory = Opts.strOption $
   <> Opts.showDefault
   <> Opts.help "Output directory."
 
-newtype EntryPoint = EntryPoint { runEntryPoint :: (P.Qualified P.Ident) }
+newtype EntryPoint = EntryPoint { runEntryPoint :: P.Qualified P.Ident }
 
 instance Read EntryPoint where
   readsPrec _ s = case unsnoc (T.splitOn "." (T.pack s)) of
-      Just (as, a) | length as > 0 -> [(EntryPoint (P.mkQualified (P.Ident a) (P.ModuleName $ P.ProperName <$> as)), "")]
-                   | otherwise     -> [(EntryPoint (P.Qualified Nothing (P.Ident a)), "")]
-      Nothing                      -> []
+      Just (as, a) | not (null as)  -> [(EntryPoint (P.mkQualified (P.Ident a) (P.ModuleName $ P.ProperName <$> as)), "")]
+                   | otherwise      -> [(EntryPoint (P.Qualified Nothing (P.Ident a)), "")]
+      Nothing                       -> []
     where
     unsnoc :: [a] -> Maybe ([a], a)
     unsnoc [] = Nothing
@@ -170,7 +169,7 @@ data DCEAppError
 
 formatDCEAppError :: DCEAppError -> Text
 formatDCEAppError (ParseErrors errs)
-  = "error: failed parsing:\n  " <> (T.intercalate "\n  " errs)
+  = "error: failed parsing:\n  " <> T.intercalate "\n  " errs
 formatDCEAppError (NoInputs path)
   = "error: inputs found under \"" <> T.pack path <> "\" directory"
 formatDCEAppError (InputNotDirectory path)
@@ -178,16 +177,16 @@ formatDCEAppError (InputNotDirectory path)
 
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
 dceCommand opts = do
-    let entryPoints = runEntryPoint <$> (dceEntryPoints opts)
+    let entryPoints = runEntryPoint <$> dceEntryPoints opts
         cfnGlb = compile "**/corefn.json"
     inpts <- liftIO $ globDir1 cfnGlb (dceInputDir opts) >>= readInput
 
     inptDirExist <- lift $ doesDirectoryExist (dceInputDir opts)
-    when (not inptDirExist) $
+    unless inptDirExist $
       throwError (InputNotDirectory (dceInputDir opts))
 
     let errs = lefts inpts
-    when (not . null $ errs) $
+    unless (null errs) $
       throwError (ParseErrors $ formatErr `map` errs)
 
     let mPursVer = fmap fst . listToMaybe . rights $ inpts
@@ -256,7 +255,7 @@ dceCommand opts = do
             -> ( outputDir </> T.unpack (P.runModuleName mn) </> "corefn.json"
                , A.object [ (P.runModuleName mn, CoreFn.moduleToJSON pursVer m) ]
                )) <$> mods
-      sequence_ $ (uncurry writeJsonFile) <$> jsons
+      sequence_ $ uncurry writeJsonFile <$> jsons
 
     mkdirp :: FilePath -> IO ()
     mkdirp = createDirectoryIfMissing True . takeDirectory
