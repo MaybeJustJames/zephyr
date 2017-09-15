@@ -1,8 +1,9 @@
 module Language.PureScript.DCE.Utils where
 
 import           Prelude.Compat
-import           Control.Arrow (first)
+import           Control.Arrow (first, second, (***), (+++))
 import           Language.PureScript.CoreFn
+import           Language.PureScript.CoreFn.Expr
 import           Language.PureScript.Names
 
 bindIdents :: Bind Ann -> [Ident]
@@ -60,3 +61,31 @@ everywhereOnValuesM f g h mh = (f', g')
   handleLiteral i (ArrayLiteral ls) = ArrayLiteral <$> (traverse i ls)
   handleLiteral i (ObjectLiteral ls) = ObjectLiteral <$> (traverse (traverse i) ls)
   handleLiteral _ other = return other
+
+unAnn :: Expr a -> Expr ()
+unAnn (Literal _ l) = Literal () (unAnn <$> l)
+unAnn (Constructor _ n cn is) = Constructor () n cn is
+unAnn (Accessor _ s e) = Accessor () s (unAnn e)
+unAnn (ObjectUpdate _ e es) = ObjectUpdate () (unAnn e) (second unAnn <$> es)
+unAnn (Abs _ i e) = Abs () i (unAnn e)
+unAnn (App _ e1 e2) = App () (unAnn e1) (unAnn e2)
+unAnn (Var _ i) = Var () i
+unAnn (Case _ es cs) = Case () (unAnn `map` es) (gn `map` cs)
+  where
+  gn :: CaseAlternative a -> CaseAlternative ()
+  gn (CaseAlternative bs es) = CaseAlternative (unAnnBinder `map` bs) ((map (unAnn *** unAnn)) +++ unAnn $ es)
+
+  unAnnBinder :: Binder a -> Binder ()
+  unAnnBinder (NullBinder _) = NullBinder ()
+  unAnnBinder (LiteralBinder _ l) = LiteralBinder () (unAnnBinder <$> l)
+  unAnnBinder (VarBinder _ i) = VarBinder () i
+  unAnnBinder (ConstructorBinder _ n cn bs) = ConstructorBinder () n cn (unAnnBinder `map` bs)
+  unAnnBinder (NamedBinder _ i b) = NamedBinder () i (unAnnBinder b)
+
+unAnn (Let _ bs e) = Let () (unAnnBind `map` bs) (unAnn e)
+  where
+  unAnnBind (NonRec _ i e) = NonRec () i (unAnn e)
+  unAnnBind (Rec bs) = Rec ((first (const ()) *** unAnn) `map` bs)
+
+showExpr :: Expr a -> String
+showExpr = show . unAnn

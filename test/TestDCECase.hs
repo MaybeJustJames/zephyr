@@ -18,6 +18,8 @@ import Language.PureScript.DCE
 import Language.PureScript.Names
 import Language.PureScript.PSString
 
+import Language.PureScript.DCE.Utils (showExpr)
+
 import Test.Hspec
 import Test.HUnit (assertFailure)
 
@@ -29,7 +31,9 @@ ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
 spec :: Spec
 spec =
   context "dceCase" $ do
-    let eq = Qualified (Just (ModuleName [ProperName "Data", ProperName "Eq"])) (Ident "eq")
+    let eqMod = ModuleName [ProperName "Data", ProperName "Eq"]
+        eq = Qualified (Just eqMod) (Ident "eq")
+        eqBoolean  = Qualified (Just eqMod) (Ident "eqBoolean")
         mn = ModuleName [ProperName "Test"]
         mp = "src/Test.purs"
 
@@ -43,7 +47,7 @@ spec =
               (App ann
                 (App ann
                   (Var ann eq)
-                  (Var ann (Qualified Nothing (Ident "someEqInstance"))))
+                  (Var ann eqBoolean))
                 (Literal ann (BooleanLiteral True)))
               (Literal ann (BooleanLiteral True))
           e :: Expr Ann
@@ -57,7 +61,7 @@ spec =
             ]
       case dceCaseExpr e of
         (Literal ann (CharLiteral 't')) -> return ()
-        x -> assertFailure $ "unexepcted expression:\n" ++ show x
+        x -> assertFailure $ "unexepcted expression:\n" ++ showExpr x
 
     specify "should simplify `if true`" $ do
       let e :: Expr Ann
@@ -71,7 +75,7 @@ spec =
             ]
       case dceCaseExpr e of
        (Literal ann (CharLiteral 't')) -> return ()
-       x -> assertFailure $ "unexepcted expression:\n" ++ show x
+       x -> assertFailure $ "unexepcted expression:\n" ++ showExpr x
 
     specify "should simplify case when comparing two literal values" $ do
       let v :: Expr Ann
@@ -80,7 +84,7 @@ spec =
               (App ann
                 (App ann
                   (Var ann eq)
-                  (Var ann (Qualified Nothing (Ident "someEqInstance"))))
+                  (Var ann eqBoolean))
                 (Literal ann (BooleanLiteral True)))
               (Literal ann (BooleanLiteral True))
           e :: Expr Ann
@@ -95,7 +99,61 @@ spec =
                   ])
       case dceCaseExpr e of
         (Let _ [NonRec _ (Ident "v") _] (Literal _ (CharLiteral 't'))) -> return ()
-        x -> assertFailure $ "unexpected expression:\n" ++ show x
+        x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
+
+    specify "should not simplify application" $ do
+      let v :: Expr Ann
+          v =
+            App ann
+              (App ann
+                (App ann
+                  (Var ann (Qualified (Just mn) (Ident "eq")))
+                  (Var ann eqBoolean))
+                (Literal ann (BooleanLiteral True)))
+              (Literal ann (BooleanLiteral True))
+          e :: Expr Ann
+          e = Let ann [NonRec ann (Ident "v") v]
+                (Case ann [Var ann (Qualified Nothing (Ident "v"))]
+                  [ CaseAlternative
+                      [ LiteralBinder ann (BooleanLiteral True) ]
+                      (Right (Literal ann (CharLiteral 't')))
+                  , CaseAlternative
+                      [ LiteralBinder ann (BooleanLiteral False) ]
+                      (Right (Literal ann (CharLiteral 'f')))
+                  ])
+      let e' = dceCaseExpr e
+      if showExpr e' /= showExpr e -- dirty
+        then assertFailure $ "unexpected expression:\n" ++ showExpr e' ++ "\nexpected:\n" ++ showExpr e
+        else return ()
+
+    specify "eval guards" $ do
+      let e :: Expr Ann
+          e = Case ann [Literal ann (BooleanLiteral True)]
+            [ CaseAlternative
+              [ VarBinder ann (Ident "x") ]
+                (Left
+                  [ (App ann
+                      (App ann
+                        (App ann
+                          (Var ann eq)
+                          (Var ann eqBoolean))
+                        (Var ann (Qualified Nothing (Ident "x"))))
+                      (Literal ann (BooleanLiteral True))
+                    , Literal ann (CharLiteral 't'))
+                  , ( Var ann (Qualified (Just (ModuleName [ProperName "Data", ProperName "Boolean"])) (Ident "otherwise"))
+                    , (Literal ann (CharLiteral 'f'))
+                    )
+                  ])
+              ]
+      case dceCaseExpr e of
+        (Case _
+          [ Literal _ (BooleanLiteral True)]
+          [ CaseAlternative
+              [ VarBinder _ (Ident "x") ]
+              (Left [ (Literal _ (BooleanLiteral True), Literal _ (CharLiteral 't')) ])
+          ]
+          ) -> return ()
+        x   -> assertFailure $ "unexpected expression:\n" ++ showExpr x
 
     specify "should evaluate exported literal" $ do
       let um :: ModuleT () Ann
