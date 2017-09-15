@@ -26,7 +26,8 @@ import           Test.Hspec
 import           Test.Hspec.Core.Spec (SpecM)
 import           Test.HUnit (assertEqual)
 
-import qualified TestDCE
+import qualified TestDCECoreFn
+import qualified TestDCECase
 
 data CoreLibTest = CoreLibTest
   { coreLibTestRepo :: Text
@@ -323,7 +324,8 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 
-  TestDCE.main
+  TestDCECoreFn.main
+  TestDCECase.main
 
   createDirectoryIfMissing False ".temp"
   setCurrentDirectory ".temp"

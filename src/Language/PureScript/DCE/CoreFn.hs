@@ -13,15 +13,16 @@ import           Data.List (any, elem, filter, groupBy, sortBy)
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import           Language.PureScript.CoreFn
+import           Language.PureScript.DCE.Utils (bindIdents, unBind)
 import           Language.PureScript.Names
 
 type Key = Qualified Ident
 
-data DCEVertex a
-  = BindVertex (Bind a)
+data DCEVertex
+  = BindVertex (Bind Ann)
   | ForeignVertex (Qualified Ident)
 
-dce :: forall t a. Show a => [ModuleT t a] -> [Qualified Ident] -> [ModuleT t a]
+dce :: forall t. [ModuleT t Ann] -> [Qualified Ident] -> [ModuleT t Ann]
 dce modules [] = modules
 dce modules entryPoints = do
     vs <- reachableList
@@ -29,21 +30,21 @@ dce modules entryPoints = do
     guard (getModuleName vs == Just moduleName)
     let
         -- | filter declarations preserving the order
-        decls :: [Bind a]
+        decls :: [Bind Ann]
         decls = filter filterByIdents moduleDecls
           where
           declIdents :: [Ident]
           declIdents = concatMap toIdents vs
 
-          toIdents :: (DCEVertex a, Key, [Key]) -> [Ident]
+          toIdents :: (DCEVertex, Key, [Key]) -> [Ident]
           toIdents (BindVertex b, _, _) = bindIdents b
           toIdents _                    = []
 
-          filterByIdents :: Bind a -> Bool
+          filterByIdents :: Bind Ann -> Bool
           filterByIdents = any (`elem` declIdents) . bindIdents
 
         idents :: [Ident]
-        idents = concatMap getBindIdents decls
+        idents = concatMap bindIdents decls
 
         exports :: [Ident]
         exports = filter (`elem` (idents ++ fst `map` foreigns)) moduleExports
@@ -51,7 +52,7 @@ dce modules entryPoints = do
         mods :: [ModuleName]
         mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
 
-        imports :: [(a, ModuleName)]
+        imports :: [(Ann, ModuleName)]
         imports = filter ((`elem` mods) . snd) moduleImports
 
         foreigns :: [ForeignDeclT t]
@@ -63,17 +64,17 @@ dce modules entryPoints = do
   where
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
-  bindIdents :: Bind a -> [Ident]
+  bindIdents :: Bind Ann -> [Ident]
   bindIdents (NonRec _ i _) = [i]
   bindIdents (Rec l) = map (\((_, i), _) -> i) l
 
   -- | The Vertex set
-  verts :: [(DCEVertex a, Key, [Key])]
+  verts :: [(DCEVertex, Key, [Key])]
   verts = do
       Module _ mn _ _ _ mf ds <- modules
       concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn . fst) `map` mf
     where
-    toVertices :: ModuleName -> Bind a -> [(DCEVertex a, Key, [Key])]
+    toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]
     toVertices mn b@(NonRec _ i e) = [(BindVertex b, mkQualified i mn, deps e)]
     toVertices mn b@(Rec bs) =
       let ks :: [(Key, [Key])]
@@ -81,7 +82,7 @@ dce modules entryPoints = do
       in map (\(k, ks') -> (BindVertex b, k, map fst ks ++ ks')) ks
 
     -- | Find dependencies of an expression
-    deps :: Expr a -> [Key]
+    deps :: Expr Ann -> [Key]
     deps = go
       where
         (_, go, _, _) = everythingOnValues (++)
@@ -91,11 +92,11 @@ dce modules entryPoints = do
           (const [])
 
         -- | Build graph only from qualified identifiers
-        onExpr :: Expr a -> [Key]
+        onExpr :: Expr Ann -> [Key]
         onExpr (Var _ i) = [i | isQualified i]
         onExpr _ = []
 
-        onBinder :: Binder a -> [Key]
+        onBinder :: Binder Ann -> [Key]
         onBinder (ConstructorBinder _ _ c _) = [fmap (Ident . runProperName) c]
         onBinder _ = []
 
@@ -107,32 +108,24 @@ dce modules entryPoints = do
     return (vertexForKey k)
 
   -- | The list of reachable vertices grouped by module name
-  reachableList :: [[(DCEVertex a, Key, [Key])]]
+  reachableList :: [[(DCEVertex, Key, [Key])]]
   reachableList
     = groupBy (\(_, k1, _) (_, k2, _) -> getQual k1 == getQual k2)
     $ sortBy (\(_, k1, _) (_, k2, _) -> getQual k1 `compare` getQual k2)
     $ map keyForVertex (concatMap (reachable graph) entryPointVertices)
 
-  getModuleName :: [(DCEVertex a, Key, [Key])] -> Maybe ModuleName
+  getModuleName :: [(DCEVertex, Key, [Key])] -> Maybe ModuleName
   getModuleName [] = Nothing
   getModuleName ((_, k, _) : _) = getQual k
 
-getBindIdents :: Bind a -> [Ident]
-getBindIdents (NonRec _ i _) = [i]
-getBindIdents (Rec is) = map (\((_, i), _) -> i) is
-
-getBindIdentsWithExpr :: Bind a -> [(Ident, Expr a)]
-getBindIdentsWithExpr (NonRec _ i e) = [(i,e)]
-getBindIdentsWithExpr (Rec is) = map (\((_, i),e) -> (i, e)) is
-
 -- DCE of local identifiers
 -- detect and remove unused bindings
-dceExpr :: forall a. Show a => Bind a -> Bind a
+dceExpr :: Bind Ann -> Bind Ann
 dceExpr = go
   where
   (go, _, _) = everywhereOnValues id exprFn id
 
-  exprFn :: Expr a -> Expr a
+  exprFn :: Expr Ann -> Expr Ann
   exprFn (Let ann bs ex) =
     let nbs = foldr' bindFn [] bs
     in if null nbs
@@ -140,7 +133,7 @@ dceExpr = go
       else Let ann nbs ex
 
     where
-    bindFn :: Bind a -> [Bind a] -> [Bind a]
+    bindFn :: Bind Ann -> [Bind Ann] -> [Bind Ann]
     bindFn b@(NonRec _ i _) r | i `elem` reachableIdents = b : r
                               | otherwise = r
     bindFn (Rec l) r =
@@ -157,7 +150,7 @@ dceExpr = go
     -- fullfiled by PureScript.
     verts :: [(Ident, Ident, [Ident])]
     verts = do
-      let bes = getBindIdentsWithExpr `concatMap` bs
+      let bes = unBind `concatMap` bs
       (i, e) <- bes
       let deps = fst `map` filter ((\i' -> i' /= i && isUsedInExpr i' e)  . fst) bes
       return (i, i, deps)
@@ -171,7 +164,7 @@ dceExpr = go
     reachableIdents = map ((\(_, i, _) -> i) . keyForVertex) $ reachable graph `concatMap` entryPointVertices
   exprFn e = e
 
-  isUsedInExpr :: Ident -> Expr a -> Bool
+  isUsedInExpr :: Ident -> Expr Ann -> Bool
   isUsedInExpr i (Literal _ (ArrayLiteral es)) = any (isUsedInExpr i) es
   isUsedInExpr i (Literal _ (ObjectLiteral es)) = any (isUsedInExpr i . snd) es
   isUsedInExpr _ (Literal _ _) = False
@@ -196,7 +189,7 @@ dceExpr = go
     -- expression.  A binding might shadow an identifier.  The first Boolean
     -- value denotes if i is used in any bind expression, the second if it was
     -- shadowed.
-    (used, shadowed) = foldl' fn (False, False) (concatMap getBindIdentsWithExpr bs)
+    (used, shadowed) = foldl' fn (False, False) (concatMap unBind bs)
 
     fn (u, s) (i', e')
       | s || i == i'  = (u, True)

@@ -195,7 +195,7 @@ dceCommand opts = do
       throwError (NoInputs (dceInputDir opts) )
     let pursVer = fromJust mPursVer
 
-    let mods = P.dce (snd `map` rights inpts) entryPoints
+    let mods = P.dce (P.dceCase (snd `map` rights inpts)) entryPoints
     if dceDumpCoreFn opts
       then liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts)
       else liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
