@@ -195,9 +195,9 @@ dceCommand opts = do
     let pursVer = fromJust mPursVer
 
     let mods = P.dce (P.dceCase (snd `map` rights inpts)) entryPoints
-    if dceDumpCoreFn opts
-      then liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts)
-      else liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
+    liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
+    when (dceDumpCoreFn opts)
+      (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))
 
   where
     runCodegen :: [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> FilePath -> IO ()
