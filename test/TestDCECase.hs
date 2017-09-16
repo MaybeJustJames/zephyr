@@ -182,3 +182,21 @@ spec =
       case dceCase [mm, um] of
         (Module _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _ -> return ()
         r -> assertFailure $ "unexpected result:\n" ++ show r
+
+    specify "should evaluate accessor expression" $ do
+      let e :: Expr Ann
+          e = (Accessor ann (mkString "a") (Literal ann (ObjectLiteral [(mkString "a", Literal ann (CharLiteral 't'))])))
+      case dceCaseExpr e of
+        (Literal _ (CharLiteral 't')) -> return ()
+        x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
+
+    specify "should evaluate accessing array by index" $ do
+      let e :: Expr Ann
+          e = (App ann
+                (App ann
+                  (Var ann (Qualified (Just (ModuleName [ProperName "Data", ProperName "Array"])) (Ident "index")))
+                  (Literal ann (ArrayLiteral [Literal ann (CharLiteral 't')])))
+                (Literal ann (NumericLiteral (Left 0))))
+      case dceCaseExpr e of
+        (Literal _ (CharLiteral 't')) -> return ()
+        x -> assertFailure $ "unexpected expression:\n" ++ showExpr x

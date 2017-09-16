@@ -13,6 +13,7 @@ import           Language.PureScript.AST.Literals
 import           Language.PureScript.CoreFn
 import           Language.PureScript.Names
 import           Language.PureScript.DCE.Utils
+import           Safe (atMay)
 
 type Stack = [[(Ident, Expr Ann)]]
 
@@ -72,7 +73,7 @@ dceCase mods = map go mods
       Nothing -> return e
 
   eval :: Stack -> Expr Ann -> Maybe (Literal (Expr Ann))
-  eval s (Var _ (Qualified Nothing i)) = 
+  eval s (Var _ (Qualified Nothing i)) =
     case fnd i s of
       Nothing -> Nothing
       Just e  -> eval s e
@@ -80,10 +81,7 @@ dceCase mods = map go mods
       fnd :: Ident -> Stack -> Maybe (Expr Ann)
       fnd i s = getFirst $ foldMap (First . lookup i) s
   eval s (Var _ (Qualified (Just mn) i)) = join $ eval s <$> findExpr mn i mods
-  eval _ (Literal _ (BooleanLiteral a)) = Just (BooleanLiteral a)
-  eval _ (Literal _ (NumericLiteral a)) = Just (NumericLiteral a)
-  eval _ (Literal _ (StringLiteral a)) = Just (StringLiteral a)
-  eval _ (Literal _ (CharLiteral a)) = Just (CharLiteral a)
+  eval _ (Literal _ a) = Just a
   eval s
     (App _
       (App _
@@ -105,6 +103,13 @@ dceCase mods = map go mods
         else Nothing
     where
       mn = ModuleName [ProperName "Data", ProperName "Eq"]
+  eval s (Accessor _ a (Literal _ (ObjectLiteral as))) = maybe Nothing (eval s) $ a `lookup` as
+  eval s (App _
+            (App _
+              (Var _ (Qualified (Just (ModuleName [ProperName "Data", ProperName "Array"])) (Ident "index")))
+              (Literal _ (ArrayLiteral as)))
+            (Literal _ (NumericLiteral (Left x))))
+    = maybe Nothing (eval s) $ as `atMay` (fromIntegral x)
   eval _ _ = Nothing
 
   eqLit :: Literal a -> Literal b -> Bool
