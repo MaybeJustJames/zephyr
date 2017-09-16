@@ -7,6 +7,5 @@ packages:
     commit: d1f6f848572494c815cef262acba43e58aa71d46
   extra-dep: true
 extra-deps:
-- listsafe-0.1.0.1
 - pipes-http-1.0.5
 resolver: lts-8.5

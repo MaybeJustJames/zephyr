@@ -166,14 +166,17 @@ data DCEAppError
   = ParseErrors [Text]
   | InputNotDirectory FilePath
   | NoInputs FilePath
+  | CompilationError P.DCEError
 
-formatDCEAppError :: DCEAppError -> Text
-formatDCEAppError (ParseErrors errs)
-  = "error: failed parsing:\n  " <> T.intercalate "\n  " errs
-formatDCEAppError (NoInputs path)
-  = "error: inputs found under \"" <> T.pack path <> "\" directory"
-formatDCEAppError (InputNotDirectory path)
-  = "error: directory \"" <> T.pack path <> "\" does not exist"
+formatDCEAppError :: FilePath -> DCEAppError -> Text
+formatDCEAppError _ (ParseErrors errs)
+  = "Error: failed parsing:\n  " <> T.intercalate "\n  " errs
+formatDCEAppError _ (NoInputs path)
+  = "Error: inputs found under \"" <> T.pack path <> "\" directory"
+formatDCEAppError _ (InputNotDirectory path)
+  = "Error: directory \"" <> T.pack path <> "\" does not exist"
+formatDCEAppError relPath (CompilationError err)
+  = "Error: " <> P.displayDCEError relPath err
 
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
 dceCommand opts = do
@@ -194,11 +197,12 @@ dceCommand opts = do
       throwError (NoInputs (dceInputDir opts) )
     let pursVer = fromJust mPursVer
 
-    let mods = P.dce (P.dceCase (snd `map` rights inpts)) entryPoints
-    liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
-    when (dceDumpCoreFn opts)
-      (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))
-
+    case flip P.dce entryPoints <$> P.dceEval (snd `map` rights inpts) of
+      Left err -> throwError (CompilationError err)
+      Right mods -> do
+        liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
+        when (dceDumpCoreFn opts)
+          (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))
   where
     runCodegen :: [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> FilePath -> IO ()
     runCodegen mods inputDir outputDir = do
@@ -273,8 +277,9 @@ dceCommand opts = do
 runDCECommand :: DCEOptions -> IO ()
 runDCECommand opts = do
   res <- runExceptT (dceCommand opts)
+  relPath <- getCurrentDirectory
   case res of
-    Left e  -> (T.hPutStrLn stderr . formatDCEAppError $ e) *> exitFailure
+    Left e  -> (T.hPutStrLn stderr . formatDCEAppError relPath $ e) *> exitFailure
     Right _ -> exitSuccess
 
 command :: Opts.Parser (IO ())
