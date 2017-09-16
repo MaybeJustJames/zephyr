@@ -29,10 +29,13 @@ dceEval mods = traverse go mods
 
   (onBind', _) = everywhereOnValuesM onBind onExpr onBinders
     (modify $ second (drop 1))
+    -- ^ pop recent value in the stack (it was added in `onBinders`
 
   onBind :: Bind Ann -> StateT (ModuleName, Stack) m (Bind Ann)
   onBind b = modify (second (unBind b :)) *> return b
 
+  -- | 
+  -- Track local identifiers in case binders, push them onto the stack.
   onBinders
     :: [Expr Ann]
     -> [Binder Ann]
@@ -49,6 +52,14 @@ dceEval mods = traverse go mods
     fn (ConstructorBinder _ _ _ bs, e) = concatMap fn (zip bs (repeat e))
     fn (NamedBinder _ i b, e) = (i, e) : fn (b, e)
 
+  -- |
+  -- Evaluate expressions, keep the stack of local identifiers. It does not
+  -- track identifiers which are coming from abstractions, but `Let` and
+  -- `Case` binders are pushed into / poped from the stack.
+  -- * `Let` binds are added in `onBind` and poped from the stack
+  --   when visiting `Let` expression.
+  -- * `Case` binds are added in `onBinders` and poped in the
+  --  `everywhereOnValuesM` monadic action.
   onExpr
     :: Expr Ann
     -> StateT (ModuleName, Stack) m (Expr Ann)
@@ -86,6 +97,11 @@ dceEval mods = traverse go mods
       Just l  -> return l
       Nothing -> return e
 
+  -- |
+  -- Evaluate an expression
+  -- * `Data.Eq.eq` of two literals
+  -- * `Data.Array.index` on a literal array
+  -- * Object accessors
   eval :: Expr Ann -> StateT (ModuleName, Stack) m (Maybe (Expr Ann))
   eval (Var _ (Qualified Nothing i)) = do
     (_, s) <- get
@@ -95,7 +111,7 @@ dceEval mods = traverse go mods
       fnd i s = getFirst $ foldMap (First . lookup i) s
   eval (Var ann qi@(Qualified (Just mn) i)) = do
     (cmn, _) <- get
-    case findExpr mn i mods of
+    case findExpr mn i of
       Nothing -> throwError (IdentifierNotFound cmn ann qi)
       Just (Right e)  -> eval e
       Just (Left _)   -> return Nothing
@@ -158,6 +174,8 @@ dceEval mods = traverse go mods
   fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) = l1 `eqLit` l2 && fltBinders ts bs
   fltBinders _ _ = True
 
+  -- |
+  -- Cast an expression to a literal.
   castToLiteral :: Expr Ann -> Maybe (Literal (Expr Ann))
   castToLiteral (Literal _ l) = Just l
   castToLiteral _ = Nothing
@@ -175,6 +193,7 @@ dceEval mods = traverse go mods
     matches (t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
     matches (_:ts) (_:bs) = matches ts bs
 
+  -- Does a binder binds?
   binds :: Binder Ann -> Bool
   binds (NullBinder _) = False
   binds (LiteralBinder _ (NumericLiteral _)) = False
@@ -187,10 +206,13 @@ dceEval mods = traverse go mods
   binds (ConstructorBinder _ _ _ bs) = any binds bs
   binds NamedBinder{} = True
 
-  findExpr :: ModuleName -> Ident -> [ModuleT t Ann] -> Maybe (Either () (Expr Ann))
-  findExpr (ModuleName (ProperName "Prim" : _)) _ _ = Just (Left ())
-  findExpr (ModuleName [ProperName "Data", ProperName "Generic"]) (Ident "anyProxy") _ = Just (Left ())
-  findExpr mn i mods
+  -- |
+  -- Find a qualified name in the list of modules `mods`, return `Left ()` for
+  -- `Prim` values, generics and foreign imports, `Right` for found bindings.
+  findExpr :: ModuleName -> Ident -> Maybe (Either () (Expr Ann))
+  findExpr (ModuleName (ProperName "Prim" : _)) _ = Just (Left ())
+  findExpr (ModuleName [ProperName "Data", ProperName "Generic"]) (Ident "anyProxy") = Just (Left ())
+  findExpr mn i
       = Right <$> join (getFirst . foldMap fIdent . concatMap unBind . moduleDecls <$> mod)
     <|> Left  <$> join (getFirst . foldMap ffIdent . moduleForeign <$> mod)
     where

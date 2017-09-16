@@ -81,11 +81,12 @@ unAnn (Case _ es cs) = Case () (unAnn `map` es) (gn `map` cs)
   unAnnBinder (VarBinder _ i) = VarBinder () i
   unAnnBinder (ConstructorBinder _ n cn bs) = ConstructorBinder () n cn (unAnnBinder `map` bs)
   unAnnBinder (NamedBinder _ i b) = NamedBinder () i (unAnnBinder b)
-
 unAnn (Let _ bs e) = Let () (unAnnBind `map` bs) (unAnn e)
   where
   unAnnBind (NonRec _ i e) = NonRec () i (unAnn e)
   unAnnBind (Rec bs) = Rec ((first (const ()) *** unAnn) `map` bs)
 
+-- |
+-- Helper function for pretty printing errors in tests.
 showExpr :: Expr a -> String
 showExpr = show . unAnn
