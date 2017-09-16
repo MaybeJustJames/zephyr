@@ -80,7 +80,7 @@ data DCEOptions = DCEOptions
   , dceOutputDir :: FilePath
   , dceDumpCoreFn :: Bool
   , dceVerbose :: Bool
-  , dceOptimize :: Int
+  , dceForeign :: Bool
   }
 
 inputDirectory :: Opts.Parser FilePath
@@ -133,12 +133,12 @@ verboseOutput = Opts.switch $
   <> Opts.showDefault
   <> Opts.help "Verbose CoreFn parser errors."
 
-optimizeLevel :: Opts.Parser Int
-optimizeLevel = Opts.option Opts.auto $
-     Opts.short 'O'
-  <> Opts.value 0
+dceForeignOption :: Opts.Parser Bool
+dceForeignOption = Opts.switch $
+     Opts.short 'f'
+  <> Opts.long "dce-foreign"
   <> Opts.showDefault
-  <> Opts.help "Optimizer level, with -O1 unused exports of foreign modules will be removed (without checking if they are used elsewhere in the foreign module)."
+  <> Opts.help "dce foriegn modules"
 
 dceOptions :: Opts.Parser DCEOptions
 dceOptions = DCEOptions
@@ -147,7 +147,7 @@ dceOptions = DCEOptions
   <*> outputDirectory
   <*> dumpCoreFn
   <*> verboseOutput
-  <*> optimizeLevel
+  <*> dceForeignOption
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
@@ -227,7 +227,7 @@ dceCommand opts = do
           lift $ P.makeIO
             (const (P.ErrorMessage [] $ P.CannotReadFile foreignInFile))
             (createDirectoryIfMissing True (outputDir </> filePath))
-          if dceOptimize opts >= 1
+          if dceForeign opts
             then do
               jsCode <- lift $ P.makeIO
                 (const $ P.ErrorMessage [] $ P.CannotReadFile foreignInFile)
