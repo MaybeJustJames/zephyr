@@ -17,6 +17,12 @@ pattern Semigroup = ModuleName [ProperName "Data", ProperName "Semigroup"]
 semiring :: ModuleName
 semiring = ModuleName [ProperName "Data", ProperName "Semiring"]
 
+pattern Ring :: ModuleName
+pattern Ring = ModuleName [ProperName "Data", ProperName "Ring"]
+
+ring :: ModuleName
+ring = ModuleName [ProperName "Data", ProperName "Ring"]
+
 pattern Semiring :: ModuleName
 pattern Semiring = ModuleName [ProperName "Data", ProperName "Semiring"]
 

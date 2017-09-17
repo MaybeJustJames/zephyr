@@ -261,6 +261,39 @@ dceEval mods = traverse go mods
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
+  -- || Eval Ring
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (App _
+          (Var _ (Qualified (Just C.Ring) (Ident "sub")))
+          (Var _ qi))
+        e1)
+      e2)
+    | qi == Qualified (Just C.ring) (Ident "ringInt")
+    , Literal _ (NumericLiteral (Left a1)) <- e1
+    , Literal _ (NumericLiteral (Left a2)) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (quot a1 a2)))
+    | qi == Qualified (Just C.ring) (Ident "ringNumber")
+    , Literal _ (NumericLiteral (Right a1)) <- e1
+    , Literal _ (NumericLiteral (Right a2)) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (a1 / a2)))
+    | qi == Qualified (Just C.ring) (Ident "unitRing")
+    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (Var _ (Qualified (Just C.Ring) (Ident "negate")))
+        (Var _ qi))
+      e)
+    | qi == Qualified (Just C.ring) (Ident "ringInt")
+    , Literal _ (NumericLiteral (Left a)) <- e
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (-a)))
+    | qi == Qualified (Just C.ring) (Ident "ringNumber")
+    , Literal _ (NumericLiteral (Right a)) <- e
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (-a)))
+    | qi == Qualified (Just C.ring) (Ident "unitRing")
+    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
   -- | Eval HeytingAlgebra
   eval
     (App (ss, c, _, _)
