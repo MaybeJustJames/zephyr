@@ -144,11 +144,11 @@ data DCEAppError
 
 formatDCEAppError :: FilePath -> DCEAppError -> String
 formatDCEAppError _ (ParseErrors errs)
-  = T.unpack $ "Error: failed parsing:\n  " <> T.intercalate "\n  " errs
+  = colorString errorColor "Error" ++ "\nFailed parsing:\n  " ++ (T.unpack $ T.intercalate "\n\t" errs)
 formatDCEAppError _ (NoInputs path)
-  = T.unpack $ "Error: no inputs found under \"" <> T.pack path <> "\" directory."
+  = colorString errorColor "Error" ++ "\nNo inputs found under " ++ colorString codeColor path ++ " directory."
 formatDCEAppError _ (InputNotDirectory path)
-  = T.unpack $ "Error: directory \"" <> T.pack path <> "\" does not exist."
+  = colorString errorColor "Error" ++ "\nDirectory " ++ colorString codeColor path ++ " does not exist."
 formatDCEAppError relPath (CompilationError err)
   = displayDCEError relPath err
 
