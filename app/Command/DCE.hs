@@ -175,7 +175,7 @@ dceCommand opts = do
       Left err -> throwError (CompilationError err)
       Right (mods, warns) -> do
         relPath <- lift getCurrentDirectory
-        lift $ traverse (hPutStrLn stderr . displayDCEWarning relPath) warns
+        lift $ traverse (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
         liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
         when (dceDumpCoreFn opts)
           (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))

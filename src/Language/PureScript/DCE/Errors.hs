@@ -66,9 +66,9 @@ displayDCEError relPath err = renderBox $ paras
   , indent $ renderDCEError relPath err
   ]
 
-displayDCEWarning :: FilePath -> DCEError 'Warning -> String
-displayDCEWarning relPath err = renderBox $ paras
-  [ colorBox warnColor "Warning"
+displayDCEWarning :: FilePath -> (Int, Int) ->  DCEError 'Warning -> String
+displayDCEWarning relPath (idx, count) err = renderBox $ paras
+  [ colorBox warnColor "Warning" Box.<+> Box.text (show idx ++ " of " ++ show count)
   , indent $ renderDCEError relPath err
   ]
 
