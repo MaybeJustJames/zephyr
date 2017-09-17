@@ -31,3 +31,9 @@ pattern HeytingAlgebra = ModuleName [ProperName "Data", ProperName "HeytingAlgeb
 
 heytingAlgebra :: ModuleName
 heytingAlgebra = ModuleName [ProperName "Data", ProperName "HeytingAlgebra"]
+
+pattern UnsafeCoerce :: ModuleName
+pattern UnsafeCoerce = ModuleName [ProperName "Unsafe", ProperName "Coerce"]
+
+unsafeCoerce :: ModuleName
+unsafeCoerce = ModuleName [ProperName "Unsafe", ProperName "Coerce"]
