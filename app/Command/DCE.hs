@@ -1,22 +1,18 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
 module Command.DCE
   ( command
   , runDCECommand
-  , DCEOptions(..)
   , dceOptions
-  , EntryPoint(..)
-  , entryPoint
+  , entryPointOpt
   ) where
 
 import           Control.Monad
 import           Control.Monad.Error.Class (MonadError(..))
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Control.Monad.Trans.Class (MonadTrans(..))
-import           Control.Monad.Trans.Except
 import           Control.Monad.Supply
+import           Control.Monad.Trans (lift)
+import           Control.Monad.Trans.Except
+import           Control.Monad.Writer
 import qualified Data.Aeson as A
 import           Data.Aeson.Internal (JSONPath)
 import           Data.Aeson.Internal as A
@@ -27,14 +23,13 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
-import           Data.List (init, last, null)
+import           Data.List (null)
 import           Data.Maybe (fromJust, isJust, isNothing, listToMaybe)
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import           Data.Text.Lazy.Encoding (encodeUtf8)
-import qualified Data.Text.IO as T
 import           Data.Version (Version)
 import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
@@ -45,7 +40,7 @@ import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
 import qualified Language.PureScript.CoreFn.ToJSON as CoreFn
 import qualified Language.PureScript.CoreImp.AST as Imp
-import qualified Language.PureScript.DCE as P
+import           Language.PureScript.DCE
 import qualified Language.PureScript.Errors.JSON as P
 import qualified Options.Applicative as Opts
 import           System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, getCurrentDirectory)
@@ -53,7 +48,7 @@ import qualified System.Console.ANSI as ANSI
 import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath ((</>), takeDirectory)
 import           System.FilePath.Glob (compile, globDir1)
-import           System.IO (stderr)
+import           System.IO (hPutStrLn, stderr)
 import qualified System.IO as IO
 
 printWarningsAndErrors :: Bool -> Bool -> P.MultipleErrors -> Either P.MultipleErrors a -> IO ()
@@ -74,45 +69,24 @@ printWarningsAndErrors verbose True warnings errors = do
                (either (P.toJSONErrors verbose P.Error) (const []) errors)
   either (const exitFailure) (const (return ())) errors
 
-data DCEOptions = DCEOptions
-  { dceEntryPoints :: [EntryPoint]
-  , dceInputDir :: FilePath
-  , dceOutputDir :: FilePath
-  , dceDumpCoreFn :: Bool
-  , dceVerbose :: Bool
-  , dceForeign :: Bool
-  }
-
-inputDirectory :: Opts.Parser FilePath
-inputDirectory = Opts.strOption $
+inputDirectoryOpt :: Opts.Parser FilePath
+inputDirectoryOpt = Opts.strOption $
      Opts.short 'i'
   <> Opts.long "input-directory"
   <> Opts.value "output"
   <> Opts.showDefault
   <> Opts.help "Input directory (purs output directory)."
 
-outputDirectory :: Opts.Parser FilePath
-outputDirectory = Opts.strOption $
+outputDirectoryOpt :: Opts.Parser FilePath
+outputDirectoryOpt = Opts.strOption $
      Opts.short 'o'
   <> Opts.long "dce-output"
   <> Opts.value "dce-output"
   <> Opts.showDefault
   <> Opts.help "Output directory."
 
-newtype EntryPoint = EntryPoint { runEntryPoint :: P.Qualified P.Ident }
-
-instance Read EntryPoint where
-  readsPrec _ s = case unsnoc (T.splitOn "." (T.pack s)) of
-      Just (as, a) | not (null as)  -> [(EntryPoint (P.mkQualified (P.Ident a) (P.ModuleName $ P.ProperName <$> as)), "")]
-                   | otherwise      -> [(EntryPoint (P.Qualified Nothing (P.Ident a)), "")]
-      Nothing                       -> []
-    where
-    unsnoc :: [a] -> Maybe ([a], a)
-    unsnoc [] = Nothing
-    unsnoc as = Just (init as, last as)
-
-entryPoint :: Opts.Parser EntryPoint
-entryPoint = Opts.argument (Opts.auto >>= checkIfQualified) $
+entryPointOpt :: Opts.Parser EntryPoint
+entryPointOpt = Opts.argument (Opts.auto >>= checkIfQualified) $
      Opts.metavar "entry-point"
   <> Opts.help "Qualified identifier. All code which is not a transitive dependency of an entry point will be removed. You can pass multiple entry points."
   where
@@ -120,21 +94,21 @@ entryPoint = Opts.argument (Opts.auto >>= checkIfQualified) $
     "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
   checkIfQualified e = return e
 
-dumpCoreFn :: Opts.Parser Bool
-dumpCoreFn = Opts.switch $
+dumpCoreFnOpt :: Opts.Parser Bool
+dumpCoreFnOpt = Opts.switch $
      Opts.long "dump-corefn"
   <> Opts.showDefault
   <> Opts.help "Dump the (functional) core representation of the dce-ed."
 
-verboseOutput :: Opts.Parser Bool
-verboseOutput = Opts.switch $
+verboseOutputOpt :: Opts.Parser Bool
+verboseOutputOpt = Opts.switch $
      Opts.short 'v'
   <> Opts.long "verbose"
   <> Opts.showDefault
   <> Opts.help "Verbose CoreFn parser errors."
 
-dceForeignOption :: Opts.Parser Bool
-dceForeignOption = Opts.switch $
+dceForeignOpt :: Opts.Parser Bool
+dceForeignOpt = Opts.switch $
      Opts.short 'f'
   <> Opts.long "dce-foreign"
   <> Opts.showDefault
@@ -142,12 +116,12 @@ dceForeignOption = Opts.switch $
 
 dceOptions :: Opts.Parser DCEOptions
 dceOptions = DCEOptions
-  <$> Opts.some entryPoint
-  <*> inputDirectory
-  <*> outputDirectory
-  <*> dumpCoreFn
-  <*> verboseOutput
-  <*> dceForeignOption
+  <$> Opts.some entryPointOpt
+  <*> inputDirectoryOpt
+  <*> outputDirectoryOpt
+  <*> dumpCoreFnOpt
+  <*> verboseOutputOpt
+  <*> dceForeignOpt
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
@@ -166,17 +140,17 @@ data DCEAppError
   = ParseErrors [Text]
   | InputNotDirectory FilePath
   | NoInputs FilePath
-  | CompilationError P.DCEError
+  | CompilationError (DCEError 'Error)
 
-formatDCEAppError :: FilePath -> DCEAppError -> Text
+formatDCEAppError :: FilePath -> DCEAppError -> String
 formatDCEAppError _ (ParseErrors errs)
-  = "Error: failed parsing:\n  " <> T.intercalate "\n  " errs
+  = T.unpack $ "Error: failed parsing:\n  " <> T.intercalate "\n  " errs
 formatDCEAppError _ (NoInputs path)
-  = "Error: inputs found under \"" <> T.pack path <> "\" directory"
+  = T.unpack $ "Error: no inputs found under \"" <> T.pack path <> "\" directory."
 formatDCEAppError _ (InputNotDirectory path)
-  = "Error: directory \"" <> T.pack path <> "\" does not exist"
+  = T.unpack $ "Error: directory \"" <> T.pack path <> "\" does not exist."
 formatDCEAppError relPath (CompilationError err)
-  = "Error: " <> P.displayDCEError relPath err
+  = displayDCEError relPath err
 
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
 dceCommand opts = do
@@ -197,9 +171,11 @@ dceCommand opts = do
       throwError (NoInputs (dceInputDir opts) )
     let pursVer = fromJust mPursVer
 
-    case flip P.dce entryPoints <$> P.dceEval (snd `map` rights inpts) of
+    case runWriterT $ (dceEval (snd `map` rights inpts)) >>= flip dce entryPoints of
       Left err -> throwError (CompilationError err)
-      Right mods -> do
+      Right (mods, warns) -> do
+        relPath <- lift getCurrentDirectory
+        lift $ traverse (hPutStrLn stderr . displayDCEWarning relPath) warns
         liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
         when (dceDumpCoreFn opts)
           (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))
@@ -234,7 +210,7 @@ dceCommand opts = do
                 (B.unpack <$> B.readFile foreignInFile)
               case JS.parse jsCode foreignInFile of
                 Right (JS.JSAstProgram ss ann) -> do
-                  let ss' = P.dceForeignModule (fst <$> mf) ss
+                  let ss' = dceForeignModule (fst <$> mf) ss
                       jsAst' = JS.JSAstProgram ss' ann
                   lift $ P.makeIO
                     (const $ P.ErrorMessage [] $ P.CannotWriteFile foreignOutFile)
@@ -246,12 +222,12 @@ dceCommand opts = do
                 (const (P.ErrorMessage [] (P.CannotReadFile foreignInFile)))
                 (copyFile foreignInFile foreignOutFile)
         lift $ writeTextFile jsFile (B.fromStrict $ TE.encodeUtf8 pjs)
-      
+
     formatErr :: (FilePath, JSONPath, String) -> Text
-    formatErr (f, p, err) = 
+    formatErr (f, p, err) =
       if dceVerbose opts
         then T.pack $ f ++ ":\n    " ++ A.formatError p err
-        else T.pack f 
+        else T.pack f
 
     runDumpCoreFn :: Version -> [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> IO ()
     runDumpCoreFn pursVer mods outputDir = do
@@ -279,7 +255,7 @@ runDCECommand opts = do
   res <- runExceptT (dceCommand opts)
   relPath <- getCurrentDirectory
   case res of
-    Left e  -> (T.hPutStrLn stderr . formatDCEAppError relPath $ e) *> exitFailure
+    Left e  -> (hPutStrLn stderr . formatDCEAppError relPath $ e) *> exitFailure
     Right _ -> exitSuccess
 
 command :: Opts.Parser (IO ())

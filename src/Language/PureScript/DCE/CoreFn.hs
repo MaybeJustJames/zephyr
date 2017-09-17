@@ -7,12 +7,15 @@ module Language.PureScript.DCE.CoreFn
 import           Prelude.Compat
 import           Control.Arrow ((***))
 import           Control.Monad
+import           Control.Monad.Except
+import           Control.Monad.Writer
 import           Data.Graph
 import           Data.Foldable (foldl', foldr')
 import           Data.List (any, elem, filter, groupBy, sortBy)
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import           Language.PureScript.CoreFn
+import           Language.PureScript.DCE.Errors
 import           Language.PureScript.DCE.Utils (bindIdents, unBind)
 import           Language.PureScript.Names
 
@@ -22,12 +25,32 @@ data DCEVertex
   = BindVertex (Bind Ann)
   | ForeignVertex (Qualified Ident)
 
-dce :: forall t. [ModuleT t Ann] -> [Qualified Ident] -> [ModuleT t Ann]
-dce modules [] = modules
-dce modules entryPoints = do
-    vs <- reachableList
-    Module {..} <- modules
-    guard (getModuleName vs == Just moduleName)
+dce
+  :: forall m t
+   . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
+  => [ModuleT t Ann]
+  -> [Qualified Ident]
+  -> m [ModuleT t Ann]
+dce _ [] = throwError NoEntryPointFound
+dce modules entryPoints =
+  if (null entryPointVertices)
+    then throwError NoEntryPointFound
+    else do
+      let found = ((\(_, qi, _) -> qi) . keyForVertex) `map` entryPointVertices
+          notFound = filter (not . (`elem` found)) entryPoints
+      when (not (null notFound))
+        (tell [EntryPointsNotFound notFound])
+      return (uncurry runDCE `map` reachableInModule)
+  where
+
+  -- |
+  -- DCE of a single module.
+  runDCE
+    :: [(DCEVertex, Key, [Key])]
+    -- ^ list of qualified names that has to be preserved
+    -> ModuleT t Ann
+    -> ModuleT t Ann
+  runDCE vs Module{..} = 
     let
         -- | filter declarations preserving the order
         decls :: [Bind Ann]
@@ -59,16 +82,11 @@ dce modules entryPoints = do
         foreigns = filter ((`S.member` reachableSet) . Qualified (Just moduleName) . fst) moduleForeign
           where
             reachableSet = foldr' (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks) S.empty vs
+    in Module moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
 
-    return $ Module moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
-  where
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
-  bindIdents :: Bind Ann -> [Ident]
-  bindIdents (NonRec _ i _) = [i]
-  bindIdents (Rec l) = map (\((_, i), _) -> i) l
-
-  -- | The Vertex set
+  -- | The Vertex set.
   verts :: [(DCEVertex, Key, [Key])]
   verts = do
       Module _ mn _ _ _ mf ds <- modules
@@ -81,7 +99,7 @@ dce modules entryPoints = do
           ks = map (\((_, i), e) -> (mkQualified i mn, deps e)) bs
       in map (\(k, ks') -> (BindVertex b, k, map fst ks ++ ks')) ks
 
-    -- | Find dependencies of an expression
+    -- | Find dependencies of an expression.
     deps :: Expr Ann -> [Key]
     deps = go
       where
@@ -91,7 +109,7 @@ dce modules entryPoints = do
           onBinder
           (const [])
 
-        -- | Build graph only from qualified identifiers
+        -- | Build graph from qualified identifiers.
         onExpr :: Expr Ann -> [Key]
         onExpr (Var _ i) = [i | isQualified i]
         onExpr _ = []
@@ -107,12 +125,19 @@ dce modules entryPoints = do
     guard $ k `elem` entryPoints
     return (vertexForKey k)
 
-  -- | The list of reachable vertices grouped by module name
+  -- | The list of reachable vertices grouped by module name.
   reachableList :: [[(DCEVertex, Key, [Key])]]
   reachableList
     = groupBy (\(_, k1, _) (_, k2, _) -> getQual k1 == getQual k2)
     $ sortBy (\(_, k1, _) (_, k2, _) -> getQual k1 `compare` getQual k2)
     $ map keyForVertex (concatMap (reachable graph) entryPointVertices)
+
+  reachableInModule :: [([(DCEVertex, Key, [Key])], ModuleT t Ann)]
+  reachableInModule = do
+    vs <- reachableList
+    m <- modules
+    guard (getModuleName vs == Just (moduleName m))
+    return (vs, m)
 
   getModuleName :: [(DCEVertex, Key, [Key])] -> Maybe ModuleName
   getModuleName [] = Nothing

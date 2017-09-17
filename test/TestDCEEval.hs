@@ -1,15 +1,9 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module TestDCECase (main) where
+module TestDCEEval (main) where
 
 import Prelude ()
 import Prelude.Compat
 
-import Data.List (concatMap)
+import Control.Monad.Writer
 
 import Language.PureScript.AST.Literals
 import Language.PureScript.AST.SourcePos
@@ -26,6 +20,7 @@ import Test.HUnit (assertFailure)
 main :: IO ()
 main = hspec spec
 
+ann :: Ann
 ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
 
 spec :: Spec
@@ -68,15 +63,11 @@ spec =
         mn = ModuleName [ProperName "Test"]
         mp = "src/Test.purs"
 
-        dceEvalExpr :: Expr Ann -> Either DCEError (Expr Ann)
-        dceEvalExpr e = case dceEval
-          [ testMod e
-          , eqMod
-          , booleanMod
-          , arrayMod
-          ] of
-          Right ((Module _ _ _ _ _ _ [NonRec _ _ e', _]): _) -> Right e'
-          Left err -> Left err
+        dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
+        dceEvalExpr e = case runWriterT $ dceEval [testMod e , eqMod , booleanMod , arrayMod] of
+          Right (((Module _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
+          Right _   -> undefined
+          Left err  -> Left err
 
     specify "should simplify if when comparing two literal values" $ do
       let v :: Expr Ann
@@ -98,7 +89,7 @@ spec =
                 (Right (Literal ann (CharLiteral 'f')))
             ]
       case dceEvalExpr e of
-        Right (Literal ann (CharLiteral 't')) -> return ()
+        Right (Literal _ (CharLiteral 't')) -> return ()
         Right x -> assertFailure $ "unexepcted expression:\n" ++ showExpr x
         Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -113,7 +104,7 @@ spec =
                 (Right (Literal ann (CharLiteral 'f')))
             ]
       case dceEvalExpr e of
-       Right (Literal ann (CharLiteral 't')) -> return ()
+       Right (Literal _ (CharLiteral 't')) -> return ()
        Right x -> assertFailure $ "unexepcted expression:\n" ++ showExpr x
        Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -223,8 +214,8 @@ spec =
             []
             []
             [NonRec ann (Ident "main") e]
-      case dceEval [mm, um] of
-        Right ((Module _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _) -> return ()
+      case runWriterT $ dceEval [mm, um] of
+        Right (((Module _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _), _) -> return ()
         Right r -> assertFailure $ "unexpected result:\n" ++ show r
         Left err -> assertFailure $ "compilation error: " ++ show err
 

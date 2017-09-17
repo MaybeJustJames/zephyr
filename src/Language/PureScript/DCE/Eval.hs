@@ -2,13 +2,14 @@
 module Language.PureScript.DCE.Eval
   ( dceEval ) where
 
-import           Prelude.Compat
+import           Prelude.Compat hiding (mod)
 import           Control.Arrow (second)
-import           Control.Applicative (liftA2, (<|>))
+import           Control.Applicative ((<|>))
 import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Except
-import           Data.Maybe (isJust, fromJust, fromMaybe, maybeToList)
+import           Control.Monad.Writer
+import           Data.Maybe (isJust, fromJust, maybeToList)
 import           Data.Monoid (First(..))
 import           Language.PureScript.AST.Literals
 import           Language.PureScript.CoreFn
@@ -19,7 +20,11 @@ import           Safe (atMay)
 
 type Stack = [[(Ident, Expr Ann)]]
 
-dceEval :: forall m t. (MonadError DCEError m) => [ModuleT t Ann] -> m [ModuleT t Ann]
+dceEval
+  :: forall m t
+   . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
+  => [ModuleT t Ann]
+  -> m [ModuleT t Ann]
 dceEval mods = traverse go mods
   where
   go :: ModuleT t Ann -> m (ModuleT t Ann)
@@ -49,7 +54,7 @@ dceEval mods = traverse go mods
     fn (NullBinder _, _ ) = []
     fn (LiteralBinder _ _, _) = []
     fn (VarBinder _ i, e) = [(i,e)]
-    fn (ConstructorBinder _ _ _ bs, e) = concatMap fn (zip bs (repeat e))
+    fn (ConstructorBinder _ _ _ as, e) = concatMap fn (zip as (repeat e))
     fn (NamedBinder _ i b, e) = (i, e) : fn (b, e)
 
   -- |
@@ -80,18 +85,17 @@ dceEval mods = traverse go mods
     where
     fltGuards :: [(Guard Ann, Expr Ann)] -> StateT (ModuleName, Stack) m [(Guard Ann, Expr Ann)]
     fltGuards [] = return []
-    fltGuards ((g,e):es) = do
+    fltGuards ((g,e):rest) = do
       v <- eval g
       case v of
         Just (Literal _ t)
           | t `eqLit` BooleanLiteral True
           ->  return [(Literal (extractAnn g) (BooleanLiteral True), e)]
           | otherwise -- guard expression must evaluate to a Boolean
-          -> fltGuards es
-        _ -> ((g,e) :) <$> fltGuards es
+          -> fltGuards rest
+        _ -> ((g,e) :) <$> fltGuards rest
   onExpr l@Let {} = modify (second (drop 1)) *> return l
   onExpr e = do
-    (_, s) <- get
     v <- eval e
     case v of
       Just l  -> return l
@@ -108,7 +112,7 @@ dceEval mods = traverse go mods
     join <$> traverse eval (fnd i s)
     where
       fnd :: Ident -> Stack -> Maybe (Expr Ann)
-      fnd i s = getFirst $ foldMap (First . lookup i) s
+      fnd j s = getFirst $ foldMap (First . lookup j) s
   eval (Var ann qi@(Qualified (Just mn) i)) = do
     (cmn, _) <- get
     case findExpr mn i of
@@ -155,7 +159,10 @@ dceEval mods = traverse go mods
           (Literal _ (NumericLiteral (Left x))))
     = do
       (mn, _) <- get
-      e <- maybe (throwError (ArrayIdxNotFound mn ann x)) return (as `atMay` fromIntegral x) >>= eval
+      e <- maybe
+            (tell [ArrayIdxOutOfBound mn ann x] *> return Nothing)
+            eval
+            (as `atMay` fromIntegral x)
       return
           $ App ann
               (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"])) (Qualified (Just (ModuleName [ProperName "Data", ProperName "Maybe"])) (Ident "Just")))
@@ -217,7 +224,7 @@ dceEval mods = traverse go mods
     <|> Left  <$> join (getFirst . foldMap ffIdent . moduleForeign <$> mod)
     where
     mod :: Maybe (ModuleT t Ann)
-    mod = getFirst $ foldMap (\mod@(Module _ mn' _ _ _ _ _) -> if mn' == mn then First (Just mod) else First Nothing) mods
+    mod = getFirst $ foldMap (\m@(Module _ mn' _ _ _ _ _) -> if mn' == mn then First (Just m) else First Nothing) mods
 
     fIdent :: (Ident, Expr Ann) -> First (Expr Ann)
     fIdent (i', e) | i == i'    = First (Just e)

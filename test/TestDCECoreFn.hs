@@ -1,9 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module TestDCECoreFn (main) where
 
 import Prelude ()
@@ -19,7 +13,6 @@ import Language.PureScript.Names
 import Language.PureScript.PSString
 
 import Test.Hspec
-import Test.HUnit (assertFailure)
 
 main :: IO ()
 main = hspec spec
