@@ -18,6 +18,7 @@ library
   ghc-options: -Wall
   exposed-modules:
       Language.PureScript.DCE
+    , Language.PureScript.DCE.Constants
     , Language.PureScript.DCE.CoreFn
     , Language.PureScript.DCE.Foreign
     , Language.PureScript.DCE.Errors

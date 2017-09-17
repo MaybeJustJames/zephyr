@@ -2,21 +2,24 @@
 module Language.PureScript.DCE.Eval
   ( dceEval ) where
 
-import           Prelude.Compat hiding (mod)
-import           Control.Arrow (second)
-import           Control.Applicative ((<|>))
-import           Control.Monad
-import           Control.Monad.State
-import           Control.Monad.Except
-import           Control.Monad.Writer
-import           Data.Maybe (isJust, fromJust, maybeToList)
-import           Data.Monoid (First(..))
-import           Language.PureScript.AST.Literals
-import           Language.PureScript.CoreFn
-import           Language.PureScript.Names
-import           Language.PureScript.DCE.Errors
-import           Language.PureScript.DCE.Utils
-import           Safe (atMay)
+import Control.Monad
+import Control.Monad.Except
+import Control.Monad.State
+import Control.Monad.Writer
+import Language.PureScript.AST.Literals
+import Language.PureScript.CoreFn
+import Language.PureScript.DCE.Errors
+import Language.PureScript.DCE.Utils
+import Language.PureScript.Names
+import Language.PureScript.PSString
+
+import Control.Applicative ((<|>))
+import Control.Arrow (second)
+import Data.Maybe (Maybe(..), fromJust, isJust, maybeToList)
+import Data.Monoid (First(..))
+import Language.PureScript.DCE.Constants as C
+import Prelude.Compat hiding (mod)
+import Safe (atMay)
 
 type Stack = [[(Ident, Expr Ann)]]
 
@@ -106,6 +109,9 @@ dceEval mods = traverse go mods
   -- * `Data.Eq.eq` of two literals
   -- * `Data.Array.index` on a literal array
   -- * Object accessors
+  -- * Semigroup operations (Array, String, Unit)
+  -- * Semiring operations (Int, Number, Unit)
+  -- * Heyting algebra operations (Boolean, Unit)
   eval :: Expr Ann -> StateT (ModuleName, Stack) m (Maybe (Expr Ann))
   eval (Var _ (Qualified Nothing i)) = do
     (_, s) <- get
@@ -167,6 +173,176 @@ dceEval mods = traverse go mods
           $ App ann
               (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"])) (Qualified (Just (ModuleName [ProperName "Data", ProperName "Maybe"])) (Ident "Just")))
         <$> e
+  -- | Eval Semigroup
+  eval
+    (App ann
+      (App _
+        (App _
+           (Var _ (Qualified (Just C.Semigroup) (Ident "append")))
+           (Var _ qi))
+        e1)
+      e2)
+      | qi == Qualified (Just C.semigroup) (Ident "semigroupArray")
+      , Literal _ (ArrayLiteral a1) <- e1
+      , Literal _ (ArrayLiteral a2) <- e2
+      = return $ Just $ Literal ann (ArrayLiteral $ a1 ++ a2)
+      | qi == Qualified (Just C.semigroup) (Ident "semigroupString")
+      , Literal _ (StringLiteral s1) <- e1
+      , Just t1 <- decodeString s1
+      , Literal _ (StringLiteral s2) <- e2
+      , Just t2 <- decodeString s2
+      = return $ Just $ Literal ann (StringLiteral (mkString $ t1 <> t2) )
+      | qi == Qualified (Just C.semigroup) (Ident "semigroupUnit")
+      = return $ Just $ Var ann (Qualified (Just C.unit) (Ident "unit"))
+      | otherwise
+      = return Nothing
+  -- | Eval Semiring
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (App _
+           (Var _ (Qualified (Just C.Semiring) (Ident "add")))
+           (Var _ qi))
+        e1)
+      e2)
+    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    , Literal _ (NumericLiteral (Left a1)) <- e1
+    , Literal _ (NumericLiteral (Left a2)) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (a1 + a2)))
+    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    , Literal _ (NumericLiteral (Right a1)) <- e1
+    , Literal _ (NumericLiteral (Right a2)) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (a1 + a2)))
+    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (Var _ (Qualified (Just (C.Semiring)) (Ident "zero")))
+      (Var _ qi))
+    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left 0))
+    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right 0.0))
+    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (Var _ (Qualified (Just (C.Semiring)) (Ident "one")))
+      (Var _ qi))
+    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left 1))
+    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right 1.0))
+    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (App _
+           (Var _ (Qualified (Just C.Semiring) (Ident "mul")))
+           (Var _ qi))
+        e1)
+      e2)
+    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    , Literal _ (NumericLiteral (Left a1)) <- e1
+    , Literal _ (NumericLiteral (Left a2)) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (a1 * a2)))
+    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    , Literal _ (NumericLiteral (Right a1)) <- e1
+    , Literal _ (NumericLiteral (Right a2)) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (a1 * a2)))
+    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  -- | Eval HeytingAlgebra
+  eval
+    (App (ss, c, _, _)
+      (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "ff")))
+      (Var _ qi))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral False)
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "tt")))
+      (Var _ qi))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral True)
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "not")))
+        (Var _ qi))
+      e)
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    , Literal _ (BooleanLiteral b) <- e
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (not b))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (App _
+           (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "implies")))
+           (Var _ qi))
+        e1)
+      e2)
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    , Literal _ (BooleanLiteral b1) <- e1
+    , Literal _ (BooleanLiteral b2) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (not b1 && b2))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (App _
+           (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "disj")))
+           (Var _ qi))
+        e1)
+      e2)
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    , Literal _ (BooleanLiteral b1) <- e1
+    , Literal _ (BooleanLiteral b2) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (b1 || b2))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
+  eval
+    (App (ss, c, _, _)
+      (App _
+        (App _
+           (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "conj")))
+           (Var _ qi))
+        e1)
+      e2)
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    , Literal _ (BooleanLiteral b1) <- e1
+    , Literal _ (BooleanLiteral b2) <- e2
+    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (b1 && b2))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    | otherwise
+    = return Nothing
   eval _ = return Nothing
 
   eqLit :: Literal a -> Literal b -> Bool
