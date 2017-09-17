@@ -171,7 +171,7 @@ dceCommand opts = do
       throwError (NoInputs (dceInputDir opts) )
     let pursVer = fromJust mPursVer
 
-    case runWriterT $ (dceEval (snd `map` rights inpts)) >>= flip dce entryPoints of
+    case runWriterT $ dceEval (snd `map` rights inpts) >>= flip dce entryPoints of
       Left err -> throwError (CompilationError err)
       Right (mods, warns) -> do
         relPath <- lift getCurrentDirectory

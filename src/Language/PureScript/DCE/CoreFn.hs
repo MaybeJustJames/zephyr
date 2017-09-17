@@ -33,14 +33,12 @@ dce
   -> m [ModuleT t Ann]
 dce _ [] = throwError NoEntryPointFound
 dce modules entryPoints =
-  if (null entryPointVertices)
-    then throwError NoEntryPointFound
-    else do
-      let found = ((\(_, qi, _) -> qi) . keyForVertex) `map` entryPointVertices
-          notFound = filter (not . (`elem` found)) entryPoints
-      when (not (null notFound))
-        (tell [EntryPointsNotFound notFound])
-      return (uncurry runDCE `map` reachableInModule)
+  if null entryPointVertices then throwError NoEntryPointFound else do
+    let found = ((\(_, qi, _) -> qi) . keyForVertex) `map` entryPointVertices
+        notFound = filter (not . (`elem` found)) entryPoints
+    unless (null notFound)
+      (tell [EntryPointsNotFound notFound])
+    return (uncurry runDCE `map` reachableInModule)
   where
 
   -- |

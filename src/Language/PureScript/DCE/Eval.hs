@@ -219,7 +219,7 @@ dceEval mods = traverse go mods
     = return Nothing
   eval
     (App (ss, c, _, _)
-      (Var _ (Qualified (Just (C.Semiring)) (Ident "zero")))
+      (Var _ (Qualified (Just C.Semiring) (Ident "zero")))
       (Var _ qi))
     | qi == Qualified (Just C.semiring) (Ident "semiringInt")
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left 0))
@@ -231,7 +231,7 @@ dceEval mods = traverse go mods
     = return Nothing
   eval
     (App (ss, c, _, _)
-      (Var _ (Qualified (Just (C.Semiring)) (Ident "one")))
+      (Var _ (Qualified (Just C.Semiring) (Ident "one")))
       (Var _ qi))
     | qi == Qualified (Just C.semiring) (Ident "semiringInt")
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left 1))
@@ -266,9 +266,9 @@ dceEval mods = traverse go mods
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "ff")))
       (Var _ qi))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral False)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
@@ -276,9 +276,9 @@ dceEval mods = traverse go mods
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "tt")))
       (Var _ qi))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral True)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
@@ -288,10 +288,10 @@ dceEval mods = traverse go mods
         (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "not")))
         (Var _ qi))
       e)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b) <- e
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (not b))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
@@ -303,11 +303,11 @@ dceEval mods = traverse go mods
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (not b1 && b2))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
@@ -319,11 +319,11 @@ dceEval mods = traverse go mods
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (b1 || b2))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
@@ -335,11 +335,11 @@ dceEval mods = traverse go mods
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraBoolean"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (b1 && b2))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident ("heytingAlgebraUnit"))
+    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
