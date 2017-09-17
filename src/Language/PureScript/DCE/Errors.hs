@@ -46,7 +46,7 @@ formatDCEError (ArrayIdxOutOfBound _ _ i) = Box.text "Array literal lacks requir
 formatDCEError (AccessorNotFound _ _ acc) = Box.text "Object literal lacks required label" Box.<+> colorBox codeColor (T.unpack $ prettyPrintString acc) Box.<> "."
 formatDCEError NoEntryPointFound = "No entry point found."
 formatDCEError (EntryPointsNotFound qis)
-        = Box.text "Entry points:"
+        = Box.text ("Entry point" ++ if length qis > 1 then "s:" else "")
   Box.<+> (foldr1 (Box.<>) (intersperse (Box.text ", ") ((colorBox codeColor . T.unpack . showQualified runIdent) `map` qis)))
   Box.<+> "not found."
 
