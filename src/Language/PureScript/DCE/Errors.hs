@@ -40,7 +40,7 @@ formatDCEError (IdentifierNotFound _ _ qi) = "Unknown value " <> showQualified r
 formatDCEError (ArrayIdxOutOfBound _ _ i) = "Array literal lacks required index " <> T.pack (show i) <> "."
 formatDCEError (AccessorNotFound _ _ acc) = "Object literal lacks required label " <> prettyPrintString acc <> "."
 formatDCEError NoEntryPointFound = "No entry point found."
-formatDCEError (EntryPointsNotFound qis) = "Entry points " <> T.intercalate ", " (showQualified runIdent `map` qis) <> " not found."
+formatDCEError (EntryPointsNotFound qis) = "Entry points: " <> T.intercalate ", " (showQualified runIdent `map` qis) <> " not found."
 
 renderDCEError :: FilePath -> DCEError a -> Box.Box
 renderDCEError relPath err =
