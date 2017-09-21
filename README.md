@@ -9,7 +9,7 @@ Experimental tree shaking tool for [PureScript](https://github.com/purescript/pu
 purs compile --dump-corefn bower_components/purescript-*/src/**/*.purs src/**/*.purs
 
 # run `zephyr`
-zephyr -O1 Main.main
+zephyr -f Main.main
 
 # bundle your code
 webpack
@@ -21,7 +21,7 @@ representation) to `dce-output` directory.
 
 # Comments
 
-The `-O1` switch is not 100% safe.  When on `zephyr` will remove exports from
+The `-f` switch is not 100% safe.  When on `zephyr` will remove exports from
 foreign modules that seems to be not used: are not used in purescript code and
 seem not to be used in the foreign module.  If you simply assign to `exports`
 using javascript dot notation then you will be fine, but if you use square
