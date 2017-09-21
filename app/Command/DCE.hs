@@ -19,7 +19,8 @@ import           Data.Aeson.Internal as A
 import           Data.Aeson.Parser (eitherDecodeWith, json)
 import           Data.Aeson.Text (encodeToLazyText)
 import           Data.Aeson.Types (Value)
-import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as B (toStrict, fromStrict)
 import qualified Data.ByteString.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
@@ -28,8 +29,8 @@ import           Data.Maybe (fromJust, isJust, isNothing, listToMaybe)
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as T (toStrict)
 import qualified Data.Text.Encoding as TE
-import           Data.Text.Lazy.Encoding (encodeUtf8)
 import           Data.Version (Version)
 import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
@@ -127,7 +128,7 @@ readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, Cor
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
   where
   decodeCoreFn :: B.ByteString -> Either (JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
-  decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON)
+  decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON) . B.fromStrict
 
   addPath
     :: FilePath
@@ -144,7 +145,7 @@ data DCEAppError
 
 formatDCEAppError :: FilePath -> DCEAppError -> String
 formatDCEAppError _ (ParseErrors errs)
-  = colorString errorColor "Error" ++ "\nFailed parsing:\n  " ++ (T.unpack $ T.intercalate "\n\t" errs)
+  = colorString errorColor "Error" ++ "\nFailed parsing:\n  " ++ T.unpack (T.intercalate "\n\t" errs)
 formatDCEAppError _ (NoInputs path)
   = colorString errorColor "Error" ++ "\nNo inputs found under " ++ colorString codeColor path ++ " directory."
 formatDCEAppError _ (InputNotDirectory path)
@@ -214,14 +215,14 @@ dceCommand opts = do
                       jsAst' = JS.JSAstProgram ss' ann
                   lift $ P.makeIO
                     (const $ P.ErrorMessage [] $ P.CannotWriteFile foreignOutFile)
-                    (B.writeFile foreignOutFile (encodeUtf8 $ JS.renderToText jsAst'))
+                    (B.writeFile foreignOutFile (TE.encodeUtf8 . T.toStrict $ JS.renderToText jsAst'))
                 Right _ -> throwError (P.errorMessage $ P.ErrorParsingFFIModule foreignInFile (Just P.InvalidTopLevel))
                 _ -> throwError (P.errorMessage $ P.ErrorParsingFFIModule foreignInFile Nothing)
             else
               lift $ P.makeIO
                 (const (P.ErrorMessage [] (P.CannotReadFile foreignInFile)))
                 (copyFile foreignInFile foreignOutFile)
-        lift $ writeTextFile jsFile (B.fromStrict $ TE.encodeUtf8 pjs)
+        lift $ writeTextFile jsFile $ TE.encodeUtf8 pjs
 
     formatErr :: (FilePath, JSONPath, String) -> Text
     formatErr (f, p, err) =
@@ -248,7 +249,7 @@ dceCommand opts = do
     writeJsonFile :: FilePath -> Value -> IO ()
     writeJsonFile path v = do
       mkdirp path
-      B.writeFile path (encodeUtf8 $ encodeToLazyText v)
+      B.writeFile path . TE.encodeUtf8 . T.toStrict . encodeToLazyText $ v
 
 runDCECommand :: DCEOptions -> IO ()
 runDCECommand opts = do
