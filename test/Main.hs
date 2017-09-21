@@ -46,6 +46,7 @@ coreLibs =
   , CoreLibTest "git@github.com:bodil/purescript-signal" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:bodil/purescript-test-unit" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:slamdata/purescript-aff" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "git@github.com:slamdata/purescript-avar" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:slamdata/purescript-matryoshka" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:slamdata/purescript-routing" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:slamdata/purescript-routing" []
