@@ -19,6 +19,27 @@ webpack
 transitive dependencies of entry points and dumps common js modules (or corefn
 representation) to `dce-output` directory.
 
+# Zephyr eval
+
+Zephyr can evaluate some literal expressions.
+```purescript
+import Config (isProduction)
+
+a = if isProduction
+  then "api/prod/"
+  else "api/dev/"
+```
+will be transformed to
+```
+a = "api/prod/"
+```
+whenever `isProduction` is `true`.  This allows you to have different
+development and production environment while still ship a minified code in your
+production environment.  You may define `isProduction` in a module under
+a `src-prod` directory and include it when compiling production code with `pulp
+build -I src-prod` and to have another copy for your development environment
+under `src-dev` where `isProduction` is set to `false`.
+
 # Comments
 
 The `-f` switch is not 100% safe.  When on `zephyr` will remove exports from
