@@ -121,7 +121,7 @@ dceEval mods = traverse go mods
       fnd j s = getFirst $ foldMap (First . lookup j) s
   eval (Var ann qi@(Qualified (Just mn) i)) = do
     (cmn, _) <- get
-    case findExpr mn i of
+    case findQualifiedExpr mn i of
       Nothing -> throwError (IdentifierNotFound cmn ann qi)
       Just (Right e)  -> eval e
       Just (Left _)   -> return Nothing
@@ -432,10 +432,10 @@ dceEval mods = traverse go mods
   -- |
   -- Find a qualified name in the list of modules `mods`, return `Left ()` for
   -- `Prim` values, generics and foreign imports, `Right` for found bindings.
-  findExpr :: ModuleName -> Ident -> Maybe (Either () (Expr Ann))
-  findExpr (ModuleName (ProperName "Prim" : _)) _ = Just (Left ())
-  findExpr (ModuleName [ProperName "Data", ProperName "Generic"]) (Ident "anyProxy") = Just (Left ())
-  findExpr mn i
+  findQualifiedExpr :: ModuleName -> Ident -> Maybe (Either () (Expr Ann))
+  findQualifiedExpr (ModuleName (ProperName "Prim" : _)) _ = Just (Left ())
+  findQualifiedExpr (ModuleName [ProperName "Data", ProperName "Generic"]) (Ident "anyProxy") = Just (Left ())
+  findQualifiedExpr mn i
       = Right <$> join (getFirst . foldMap fIdent . concatMap unBind . moduleDecls <$> mod)
     <|> Left  <$> join (getFirst . foldMap ffIdent . moduleForeign <$> mod)
     where

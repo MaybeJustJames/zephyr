@@ -9,6 +9,7 @@ import Language.PureScript.AST.Literals
 import Language.PureScript.AST.SourcePos
 import Language.PureScript.CoreFn
 import Language.PureScript.DCE
+import Language.PureScript.DCE.Constants as C
 import Language.PureScript.Names
 import Language.PureScript.PSString
 
@@ -53,7 +54,12 @@ spec =
                 (Abs ann (Ident "ix")
                   (Literal ann (CharLiteral 'f'))))
           ]
-
+        unsafeCoerceMod = Module [] C.unsafeCoerce ""
+          [] [] []
+          [ NonRec ann (Ident "unsafeCoerce")
+              (Abs ann (Ident "x")
+                (Var ann (Qualified Nothing (Ident "x"))))
+          ]
         testMod e = Module [] mn mp [] [] []
           [ NonRec ann (Ident "v") e
           , NonRec ann (Ident "f")
@@ -64,7 +70,7 @@ spec =
         mp = "src/Test.purs"
 
         dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
-        dceEvalExpr e = case runWriterT $ dceEval [testMod e , eqMod , booleanMod , arrayMod] of
+        dceEvalExpr e = case runWriterT $ dceEval [testMod e , eqMod , booleanMod , arrayMod, unsafeCoerceMod] of
           Right (((Module _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
           Right _   -> undefined
           Left err  -> Left err
@@ -264,3 +270,13 @@ spec =
           Right (Let _ _ (Let _ _ (Literal _ (CharLiteral 'b')))) -> return ()
           Right x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
           Left err -> assertFailure $ "compilation error: " ++ show err
+
+    specify "should inline unsafeCoerce" $ do
+      let e :: Expr Ann
+          e = App ann
+                (Var ann (Qualified (Just C.UnsafeCoerce) (Ident "unsafeCoerce")))
+                (Literal ann (CharLiteral 'a'))
+      case dceEvalExpr e of
+        Right (Literal _ (CharLiteral 'a')) -> return ()
+        Right x -> assertFailure $ "unexpected expression: \n" ++ showExpr x
+        Left err -> assertFailure $ "compilation error: " ++ show err
