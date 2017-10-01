@@ -69,11 +69,14 @@ spec =
         mn = ModuleName [ProperName "Test"]
         mp = "src/Test.purs"
 
-        dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
-        dceEvalExpr e = case runWriterT $ dceEval [testMod e , eqMod , booleanMod , arrayMod, unsafeCoerceMod] of
+        dceEvalExpr' :: Expr Ann -> [ModuleT () Ann] -> Either (DCEError 'Error) (Expr Ann)
+        dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod e , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
           Right (((Module _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
           Right _   -> undefined
           Left err  -> Left err
+
+        dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
+        dceEvalExpr e = dceEvalExpr' e []
 
     specify "should simplify if when comparing two literal values" $ do
       let v :: Expr Ann
@@ -280,3 +283,61 @@ spec =
         Right (Literal _ (CharLiteral 'a')) -> return ()
         Right x -> assertFailure $ "unexpected expression: \n" ++ showExpr x
         Left err -> assertFailure $ "compilation error: " ++ show err
+
+    context "Var inlining" $ do
+      let oModName = ModuleName [ProperName "Other"]
+          oMod = Module [] oModName "" [] [] []
+            [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just eqModName) (Ident "eq"))) ])
+            , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just eqModName) (Ident "eq")) ])
+            , NonRec ann (Ident "s") $ Literal ann (StringLiteral (mkString "very-long-string"))
+            , NonRec ann (Ident "b") $ Literal ann (BooleanLiteral True)
+            , NonRec ann (Ident "c") $ Literal ann (CharLiteral 'a')
+            , NonRec ann (Ident "n") $ Literal ann (NumericLiteral (Left 0))
+            ]
+      specify "should not inline Var linking to an object literal" $ do
+        let e :: Expr Ann
+            e = Var ann (Qualified (Just oModName) (Ident "o"))
+        case dceEvalExpr' e [oMod] of
+          Right Var{} -> return ()
+          Right e' -> assertFailure $ "unexpected expression: " ++ showExpr e'
+          Left err -> assertFailure $ "compilation error: " ++ show err
+
+      specify "should not inline Var linking to an array literal" $ do
+        let e :: Expr Ann
+            e = Var ann (Qualified (Just oModName) (Ident "a"))
+        case dceEvalExpr' e [oMod] of
+          Right Var{} -> return ()
+          Right e' -> assertFailure $ "unexpected expression: " ++ showExpr e'
+          Left err -> assertFailure $ "compilation error: " ++ show err
+
+      specify "should not inline Var linking to a string literal" $ do
+        let e :: Expr Ann
+            e = Var ann (Qualified (Just oModName) (Ident "s"))
+        case dceEvalExpr' e [oMod] of
+          Right Var{} -> return ()
+          Right e' -> assertFailure $ "unexpected expression: " ++ showExpr e'
+          Left err -> assertFailure $ "compilation error: " ++ show err
+
+      specify "should inline Var lining to a boolean literal" $ do
+        let e :: Expr Ann
+            e = Var ann (Qualified (Just oModName) (Ident "b"))
+        case dceEvalExpr' e [oMod] of
+          Right (Literal _ (BooleanLiteral{})) -> return ()
+          Right e' -> assertFailure $ "wront expression: " ++ showExpr e'
+          Left err -> assertFailure $ "compilation error: " ++ show err
+
+      specify "should inline Var lining to a char literal" $ do
+        let e :: Expr Ann
+            e = Var ann (Qualified (Just oModName) (Ident "c"))
+        case dceEvalExpr' e [oMod] of
+          Right (Literal _ (CharLiteral{})) -> return ()
+          Right e' -> assertFailure $ "wront expression: " ++ showExpr e'
+          Left err -> assertFailure $ "compilation error: " ++ show err
+
+      specify "should inline Var lining to a numeric literal" $ do
+        let e :: Expr Ann
+            e = Var ann (Qualified (Just oModName) (Ident "n"))
+        case dceEvalExpr' e [oMod] of
+          Right (Literal _ (NumericLiteral{})) -> return ()
+          Right e' -> assertFailure $ "wront expression: " ++ showExpr e'
+          Left err -> assertFailure $ "compilation error: " ++ show err

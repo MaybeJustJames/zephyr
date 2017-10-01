@@ -98,6 +98,15 @@ dceEval mods = traverse go mods
           -> fltGuards rest
         _ -> ((g,e) :) <$> fltGuards rest
   onExpr l@Let {} = modify (second (drop 1)) *> return l
+  onExpr e@Var{} = do
+    v <- eval e
+    case v of
+      Just l@(Literal _ NumericLiteral{}) -> return l
+      Just l@(Literal _ CharLiteral{}) -> return l
+      Just l@(Literal _ BooleanLiteral{}) -> return l
+      -- preserve string, array and object literals
+      Just _  -> return e
+      Nothing -> return e
   onExpr e = do
     v <- eval e
     case v of
@@ -382,7 +391,6 @@ dceEval mods = traverse go mods
       (Var _ (Qualified (Just C.UnsafeCoerce) (Ident "unsafeCoerce")))
       e)
     = return $ Just $ modifyAnn (const ann) e
-
   eval _ = return Nothing
 
   eqLit :: Literal a -> Literal b -> Bool
