@@ -3,7 +3,6 @@ module Language.PureScript.DCE.Utils where
 import           Prelude.Compat
 import           Control.Arrow (first, second, (***), (+++))
 import           Language.PureScript.CoreFn
-import           Language.PureScript.CoreFn.Expr
 import           Language.PureScript.Names
 
 bindIdents :: Bind Ann -> [Ident]
@@ -36,7 +35,7 @@ everywhereOnValuesM f g h mh = (f', g')
   g' (Accessor ann prop e) = Accessor ann prop <$> g' e >>= g
   g' (ObjectUpdate ann obj vs) = ObjectUpdate ann <$> g' obj <*> traverse (traverse g') vs >>= g
   g' (Abs ann name e) = Abs ann name <$> g' e >>= g
-  g' app@(App ann v1 v2) = App ann <$> g' v1 <*> g' v2 >>= g
+  g' (App ann v1 v2) = App ann <$> g' v1 <*> g' v2 >>= g
   g' (Case ann vs alts) = do
     vs' <- traverse g' vs
     alts' <- traverse (handleCaseAlternative vs') alts
@@ -46,13 +45,13 @@ everywhereOnValuesM f g h mh = (f', g')
 
   handleCaseAlternative :: [Expr a] -> CaseAlternative a -> m (CaseAlternative a)
   handleCaseAlternative es (CaseAlternative bs r) = do
-    bs <- h es bs
+    bs' <- h es bs
     rs <- g'' r
     mh
-    return (CaseAlternative bs rs)
+    return (CaseAlternative bs' rs)
     where
     g'' :: Either [(Guard a, Expr a)] (Expr a) -> m (Either [(Guard a, Expr a)] (Expr a))
-    g'' (Left es) = Left <$> traverse gn es
+    g'' (Left es') = Left <$> traverse gn es'
     g'' (Right e) = Right <$> g' e
 
     gn (e1, e2) = (,) <$> g' e1 <*> g' e2
@@ -73,7 +72,7 @@ unAnn (Var _ i) = Var () i
 unAnn (Case _ es cs) = Case () (unAnn `map` es) (gn `map` cs)
   where
   gn :: CaseAlternative a -> CaseAlternative ()
-  gn (CaseAlternative bs es) = CaseAlternative (unAnnBinder `map` bs) (map (unAnn *** unAnn) +++ unAnn $ es)
+  gn (CaseAlternative bs es') = CaseAlternative (unAnnBinder `map` bs) (map (unAnn *** unAnn) +++ unAnn $ es')
 
   unAnnBinder :: Binder a -> Binder ()
   unAnnBinder (NullBinder _) = NullBinder ()
@@ -83,8 +82,8 @@ unAnn (Case _ es cs) = Case () (unAnn `map` es) (gn `map` cs)
   unAnnBinder (NamedBinder _ i b) = NamedBinder () i (unAnnBinder b)
 unAnn (Let _ bs e) = Let () (unAnnBind `map` bs) (unAnn e)
   where
-  unAnnBind (NonRec _ i e) = NonRec () i (unAnn e)
-  unAnnBind (Rec bs) = Rec ((first (const ()) *** unAnn) `map` bs)
+  unAnnBind (NonRec _ i e') = NonRec () i (unAnn e')
+  unAnnBind (Rec bs') = Rec ((first (const ()) *** unAnn) `map` bs')
 
 -- |
 -- Helper function for pretty printing errors in tests.
