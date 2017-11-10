@@ -8,6 +8,7 @@ language: generic
 cache:
   directories:
   - $HOME/.stack
+  - .temp
   timeout: 1000
 
 # Ensure necessary system libraries are present
