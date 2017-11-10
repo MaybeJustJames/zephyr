@@ -1,0 +1,22 @@
+{
+  "name": "tests",
+  "homepage": "https://github.com/coot/zephyr",
+  "authors": [
+    "Marcin Szamotulski <mszamot@gmail.com>"
+  ],
+  "description": "",
+  "main": "",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "purescript-unsafe-coerce": "^3.0.0",
+    "purescript-prelude": "^3.1.1",
+    "purescript-eff": "^3.1.0"
+  }
+}

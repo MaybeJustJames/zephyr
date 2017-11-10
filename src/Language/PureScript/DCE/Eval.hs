@@ -385,12 +385,6 @@ dceEval mods = traverse go mods
     = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
-  -- | Unsafe.Coerce.unsafeCoerce
-  eval
-    (App ann
-      (Var _ (Qualified (Just C.UnsafeCoerce) (Ident "unsafeCoerce")))
-      e)
-    = return $ Just $ modifyAnn (const ann) e
   eval _ = return Nothing
 
   eqLit :: Literal a -> Literal b -> Bool

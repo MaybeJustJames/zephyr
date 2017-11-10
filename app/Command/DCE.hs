@@ -143,14 +143,20 @@ data DCEAppError
   | NoInputs FilePath
   | CompilationError (DCEError 'Error)
 
-formatDCEAppError :: FilePath -> DCEAppError -> String
-formatDCEAppError _ (ParseErrors errs)
-  = colorString errorColor "Error" ++ "\nFailed parsing:\n  " ++ T.unpack (T.intercalate "\n\t" errs)
-formatDCEAppError _ (NoInputs path)
-  = colorString errorColor "Error" ++ "\nNo inputs found under " ++ colorString codeColor path ++ " directory."
-formatDCEAppError _ (InputNotDirectory path)
-  = colorString errorColor "Error" ++ "\nDirectory " ++ colorString codeColor path ++ " does not exist."
-formatDCEAppError relPath (CompilationError err)
+formatDCEAppError :: DCEOptions -> FilePath -> DCEAppError -> String
+formatDCEAppError opts _ (ParseErrors errs) =
+  let errs' =
+        if dceVerbose opts
+        then errs
+        else take 5 errs ++ case length $ drop 5 errs of
+          0 -> []
+          x -> ["... (" <> T.pack (show x) <> " more)"]
+  in colorString errorColor "Error" ++ ": Failed parsing:\n  " ++ T.unpack (T.intercalate "\n\t" errs')
+formatDCEAppError _ _ (NoInputs path)
+  = colorString errorColor "Error" ++ ": No inputs found under " ++ colorString codeColor path ++ " directory.\n       Please run `purs compile --dump-corefn ..` or `pulp build -- --dump-corefn`"
+formatDCEAppError _ _ (InputNotDirectory path)
+  = colorString errorColor "Error" ++ ": Directory " ++ colorString codeColor path ++ " does not exist."
+formatDCEAppError _ relPath (CompilationError err)
   = displayDCEError relPath err
 
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
@@ -256,7 +262,7 @@ runDCECommand opts = do
   res <- runExceptT (dceCommand opts)
   relPath <- getCurrentDirectory
   case res of
-    Left e  -> (hPutStrLn stderr . formatDCEAppError relPath $ e) *> exitFailure
+    Left e  -> (hPutStrLn stderr . formatDCEAppError opts relPath $ e) *> exitFailure
     Right _ -> exitSuccess
 
 command :: Opts.Parser (IO ())

@@ -1,0 +1,14 @@
+dist
+cabal-dev
+.cabal-sandbox
+cabal.sandbox.config
+*.o
+*.hi
+*.chi
+*.chs.h
+*.lksh*
+.stack-work/
+/.temp
+/test/tests/bower_components
+/test/tests/output
+/test/tests/dce-output

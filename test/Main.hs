@@ -15,6 +15,7 @@ import           System.Directory
                   , doesDirectoryExist
                   , doesFileExist
                   , removeDirectoryRecursive
+                  , getCurrentDirectory
                   , setCurrentDirectory
                   )
 import           System.Exit (ExitCode(..))
@@ -33,7 +34,7 @@ data CoreLibTest = CoreLibTest
   -- ^ additional node modules to install
   , coreLibTestEntries :: [Text]
   -- ^ entry points for `zephyr`
-  , zephyrOptions :: Maybe [Text]
+  , coreLibZephyrOptions :: Maybe [Text]
   -- ^ zephyr options
   , coreLibTestJsCmd :: Maybe (Text, Text)
   -- ^ node script, expected output
@@ -112,6 +113,19 @@ coreLibs =
   , CoreLibTest "git@github.com:purescript-contrib/purescript-unicode" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:purescript-contrib/purescript-js-timers" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "git@github.com:purescript-contrib/purescript-unsafe-reference" [] ["Test.Main.main"] Nothing Nothing
+  ]
+
+data LibTest = LibTest
+  { libTestEntries :: [Text]
+  , libTestZephyrOptions :: Maybe [Text]
+  , libTestJsCmd :: Text
+  , libTestShouldPass :: Bool
+  -- ^ true if should run without error, false if should error
+  }
+
+libTests :: [LibTest]
+libTests =
+  [ LibTest ["Unsafe.Coerce.Test.main"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
   ]
 
 data KarmaTest = KarmaTest
@@ -228,13 +242,13 @@ runZephyr coreLibTestRepo coreLibTestEntries zephyrOptions = do
   when (ecZephyr /= ExitSuccess) (throwError $ ZephyrError coreLibTestRepo ecZephyr errZephyr)
   
 
-runTestLib :: CoreLibTest -> ExceptT TestError IO ()
-runTestLib (CoreLibTest {..}) = do
+runCoreLibTest :: CoreLibTest -> ExceptT TestError IO ()
+runCoreLibTest (CoreLibTest {..}) = do
   cloneRepo coreLibTestRepo
   npmInstall coreLibTestRepo coreLibTestNpmModules
   bowerInstall coreLibTestRepo
   pursCompile coreLibTestRepo
-  runZephyr coreLibTestRepo coreLibTestEntries zephyrOptions
+  runZephyr coreLibTestRepo coreLibTestEntries coreLibZephyrOptions
 
   (ecNode, stdNode, errNode) <- lift
     $ readProcessWithExitCode
@@ -251,6 +265,25 @@ runTestLib (CoreLibTest {..}) = do
 
   where
     defaultJsCmd = "setTimeout(process.exit.bind(process , 0), 2000); require('./dce-output/Test.Main/index.js').main()"
+
+runLibTest
+  :: LibTest
+  -> ExceptT TestError IO ()
+runLibTest (LibTest {..}) = do
+  bowerInstall "LibTest"
+  pursCompile "LibTest"
+  runZephyr "LibTest" libTestEntries libTestZephyrOptions
+  (ecNode, stdNode, errNode) <- lift
+    $ readProcessWithExitCode
+        "node"
+        [ "-e"
+        , T.unpack libTestJsCmd
+        ]
+        ""
+  when (libTestShouldPass && ecNode /= ExitSuccess)
+    (throwError $ NodeError "LibTest (should pass)" ecNode stdNode errNode)
+  when (not libTestShouldPass && ecNode == ExitSuccess)
+    (throwError $ NodeError "LibTest (should fail)" ecNode stdNode errNode)
 
 runKarmaTest
   :: KarmaTest
@@ -291,13 +324,18 @@ runKarmaTest KarmaTest{..} = do
         ""
   when (ecKarma /= ExitSuccess) (throwError $ NodeError karmaTestRepo ecKarma stdKarma errKarma)
 
-assertRuns
+assertCoreLib
   :: CoreLibTest
   -> Expectation
-assertRuns l = do
-  res <- runExceptT . runTestLib $ l
-  when (either (not . isGitError) (const True) res)
-    (setCurrentDirectory "..")
+assertCoreLib l = do
+  res <- runExceptT . runCoreLibTest $ l
+  assertEqual "should run" (Right ()) res
+
+assertLib
+  :: LibTest
+  -> Expectation
+assertLib l = do
+  res <- runExceptT . runLibTest $ l
   assertEqual "should run" (Right ()) res
 
 assertKarma
@@ -309,11 +347,17 @@ assertKarma l = do
     (setCurrentDirectory "..")
   assertEqual "should run" (Right ()) res
 
-contribSpec :: Spec
-contribSpec = do
+coreLibSpec :: Spec
+coreLibSpec = do
   context "test libraries" $ 
     forM_ coreLibs $ \l@(CoreLibTest repo  _ _ _ _) ->
-        specify (T.unpack repo) $ assertRuns l
+        specify (T.unpack repo) $ assertCoreLib l
+
+libSpec :: Spec
+libSpec = do
+  context "TestLib" $
+    forM_ libTests $ \l ->
+      specify (T.unpack $ T.intercalate (T.pack " ") $ libTestEntries l) $ assertLib l
 
 karmaSpec :: Spec
 karmaSpec = 
@@ -332,6 +376,12 @@ main = do
 
   createDirectoryIfMissing False ".temp"
   setCurrentDirectory ".temp"
+  hspec coreLibSpec
+  setCurrentDirectory ".."
 
-  hspec contribSpec
+  getCurrentDirectory >>= putStrLn
+  setCurrentDirectory "test/tests"
+  hspec libSpec
+  setCurrentDirectory "../.."
+
   hspec karmaSpec
