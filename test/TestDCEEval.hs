@@ -274,16 +274,6 @@ spec =
           Right x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
           Left err -> assertFailure $ "compilation error: " ++ show err
 
-    specify "should inline unsafeCoerce" $ do
-      let e :: Expr Ann
-          e = App ann
-                (Var ann (Qualified (Just C.UnsafeCoerce) (Ident "unsafeCoerce")))
-                (Literal ann (CharLiteral 'a'))
-      case dceEvalExpr e of
-        Right (Literal _ (CharLiteral 'a')) -> return ()
-        Right x -> assertFailure $ "unexpected expression: \n" ++ showExpr x
-        Left err -> assertFailure $ "compilation error: " ++ show err
-
     context "Var inlining" $ do
       let oModName = ModuleName [ProperName "Other"]
           oMod = Module [] oModName "" [] [] []
