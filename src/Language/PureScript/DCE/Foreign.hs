@@ -47,9 +47,9 @@ dceForeignModule is stmts = filter filterExports stmts
 
   fltr :: Text -> Bool
   fltr t = any (fromMaybe True . (path graph <$> vertexForKey t <*>) . Just) entryPointVertices
-        -- ^ one of `entryPointVertices` depend on this vertex
+        -- one of `entryPointVertices` depend on this vertex
         || any (isUsedInStmt t) nonExps
-        -- ^ it is used in any non export statements
+        -- it is used in any non export statements
 
   -- |
   -- Build a graph of exports statements.  Its initial set of edges point from

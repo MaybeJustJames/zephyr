@@ -37,7 +37,7 @@ dceEval mods = traverse go mods
 
   (onBind', _) = everywhereOnValuesM onBind onExpr onBinders
     (modify $ second (drop 1))
-    -- ^ pop recent value in the stack (it was added in `onBinders`
+    -- pop recent value in the stack (it was added in `onBinders`
 
   onBind :: Bind Ann -> StateT (ModuleName, Stack) m (Bind Ann)
   onBind b = modify (second (unBind b :)) *> return b
