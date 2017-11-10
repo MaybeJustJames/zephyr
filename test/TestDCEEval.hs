@@ -31,7 +31,7 @@ spec =
         eq = Qualified (Just eqModName) (Ident "eq")
         eqBoolean  = Qualified (Just eqModName) (Ident "eqBoolean")
         eqMod = Module [] eqModName "" [] []
-          [(Ident "refEq", ())]
+          [ Ident "refEq" ]
           [ NonRec ann (Ident "eq")  
               (Abs ann (Ident "dictEq")
                 (Abs ann (Ident "x")
@@ -69,7 +69,7 @@ spec =
         mn = ModuleName [ProperName "Test"]
         mp = "src/Test.purs"
 
-        dceEvalExpr' :: Expr Ann -> [ModuleT () Ann] -> Either (DCEError 'Error) (Expr Ann)
+        dceEvalExpr' :: Expr Ann -> [Module Ann] -> Either (DCEError 'Error) (Expr Ann)
         dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod e , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
           Right (((Module _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
           Right _   -> undefined
@@ -200,7 +200,7 @@ spec =
         Left err  -> assertFailure $ "compilation error: " ++ show err
 
     specify "should evaluate exported literal" $ do
-      let um :: ModuleT () Ann
+      let um :: Module Ann
           um = Module []
             (ModuleName [ProperName "Utils"])
             "src/Utils.purs"
@@ -214,7 +214,7 @@ spec =
             [ CaseAlternative [LiteralBinder ann (BooleanLiteral True)] (Right (Literal ann (CharLiteral 't')))
             , CaseAlternative [LiteralBinder ann (BooleanLiteral False)] (Right (Literal ann (CharLiteral 'f')))
             ]
-          mm :: ModuleT () Ann
+          mm :: Module Ann
           mm = Module
             []
             (ModuleName [ProperName "Main"])
