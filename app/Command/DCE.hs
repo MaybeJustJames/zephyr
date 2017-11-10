@@ -124,16 +124,16 @@ dceOptions = DCEOptions
   <*> verboseOutputOpt
   <*> dceForeignOpt
 
-readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)]
+readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
   where
-  decodeCoreFn :: B.ByteString -> Either (JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
+  decodeCoreFn :: B.ByteString -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
   decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON) . B.fromStrict
 
   addPath
     :: FilePath
-    -> Either (JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
-    -> Either (FilePath, JSONPath, String) (Version, CoreFn.ModuleT () CoreFn.Ann)
+    -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
+    -> Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
   addPath f = either (Left . incl) Right
     where incl (l,r) = (f,l,r)
 
@@ -181,14 +181,14 @@ dceCommand opts = do
         when (dceDumpCoreFn opts)
           (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))
   where
-    runCodegen :: [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> FilePath -> IO ()
+    runCodegen :: [CoreFn.Module CoreFn.Ann] -> FilePath -> FilePath -> IO ()
     runCodegen mods inputDir outputDir = do
       -- I need to run `codegen` from `MakeActions` directly
       -- runMake opts (make ...) accepts `PureScript.AST.Declarations.Module`
       (makeErrors, makeWarnings) <- P.runMake (P.Options True False False False) $ runSupplyT 0 (forM mods codegen)
       printWarningsAndErrors False False makeWarnings makeErrors
       where
-      codegen :: CoreFn.ModuleT () CoreFn.Ann -> SupplyT P.Make ()
+      codegen :: CoreFn.Module CoreFn.Ann -> SupplyT P.Make ()
       codegen m@(CoreFn.Module _ mn _ _ _ mf _) = do
         let foreignInclude =
               if null mf
@@ -211,7 +211,7 @@ dceCommand opts = do
                 (B.unpack <$> B.readFile foreignInFile)
               case JS.parse jsCode foreignInFile of
                 Right (JS.JSAstProgram ss ann) -> do
-                  let ss' = dceForeignModule (fst <$> mf) ss
+                  let ss' = dceForeignModule mf ss
                       jsAst' = JS.JSAstProgram ss' ann
                   lift $ P.makeIO
                     (const $ P.ErrorMessage [] $ P.CannotWriteFile foreignOutFile)
@@ -230,7 +230,7 @@ dceCommand opts = do
         then T.pack $ f ++ ":\n    " ++ A.formatError p err
         else T.pack f
 
-    runDumpCoreFn :: Version -> [CoreFn.ModuleT () CoreFn.Ann] -> FilePath -> IO ()
+    runDumpCoreFn :: Version -> [CoreFn.Module CoreFn.Ann] -> FilePath -> IO ()
     runDumpCoreFn pursVer mods outputDir = do
       let jsons = (\m@(CoreFn.Module _ mn _ _ _ _ _ )
             -> ( outputDir </> T.unpack (P.runModuleName mn) </> "corefn.json"

@@ -24,13 +24,13 @@ import Safe (atMay)
 type Stack = [[(Ident, Expr Ann)]]
 
 dceEval
-  :: forall m t
+  :: forall m
    . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
-  => [ModuleT t Ann]
-  -> m [ModuleT t Ann]
+  => [Module Ann]
+  -> m [Module Ann]
 dceEval mods = traverse go mods
   where
-  go :: ModuleT t Ann -> m (ModuleT t Ann)
+  go :: Module Ann -> m (Module Ann)
   go Module{..} = do
     decls <- (flip evalStateT (moduleName, []) . onBind') `traverse` moduleDecls
     return $ Module moduleComments moduleName modulePath moduleImports moduleExports moduleForeign decls
@@ -447,13 +447,13 @@ dceEval mods = traverse go mods
       = Right <$> join (getFirst . foldMap fIdent . concatMap unBind . moduleDecls <$> mod)
     <|> Left  <$> join (getFirst . foldMap ffIdent . moduleForeign <$> mod)
     where
-    mod :: Maybe (ModuleT t Ann)
+    mod :: Maybe (Module Ann)
     mod = getFirst $ foldMap (\m@(Module _ mn' _ _ _ _ _) -> if mn' == mn then First (Just m) else First Nothing) mods
 
     fIdent :: (Ident, Expr Ann) -> First (Expr Ann)
     fIdent (i', e) | i == i'    = First (Just e)
                    | otherwise  = First Nothing
 
-    ffIdent :: (Ident, t) -> First ()
-    ffIdent (i', _) | i == i'   = First (Just ())
-                    | otherwise = First Nothing
+    ffIdent :: Ident -> First ()
+    ffIdent i' | i == i'   = First (Just ())
+               | otherwise = First Nothing

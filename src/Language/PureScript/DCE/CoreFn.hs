@@ -26,11 +26,11 @@ data DCEVertex
   | ForeignVertex (Qualified Ident)
 
 dce
-  :: forall m t
+  :: forall m
    . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
-  => [ModuleT t Ann]
+  => [Module Ann]
   -> [Qualified Ident]
-  -> m [ModuleT t Ann]
+  -> m [Module Ann]
 dce _ [] = throwError NoEntryPointFound
 dce modules entryPoints =
   if null entryPointVertices then throwError NoEntryPointFound else do
@@ -46,8 +46,8 @@ dce modules entryPoints =
   runDCE
     :: [(DCEVertex, Key, [Key])]
     -- ^ list of qualified names that has to be preserved
-    -> ModuleT t Ann
-    -> ModuleT t Ann
+    -> Module Ann
+    -> Module Ann
   runDCE vs Module{..} = 
     let
         -- | filter declarations preserving the order
@@ -68,7 +68,7 @@ dce modules entryPoints =
         idents = concatMap bindIdents decls
 
         exports :: [Ident]
-        exports = filter (`elem` (idents ++ fst `map` foreigns)) moduleExports
+        exports = filter (`elem` (idents ++ foreigns)) moduleExports
 
         mods :: [ModuleName]
         mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
@@ -76,8 +76,8 @@ dce modules entryPoints =
         imports :: [(Ann, ModuleName)]
         imports = filter ((`elem` mods) . snd) moduleImports
 
-        foreigns :: [ForeignDeclT t]
-        foreigns = filter ((`S.member` reachableSet) . Qualified (Just moduleName) . fst) moduleForeign
+        foreigns :: [Ident]
+        foreigns = filter ((`S.member` reachableSet) . Qualified (Just moduleName)) moduleForeign
           where
             reachableSet = foldr' (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks) S.empty vs
     in Module moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
@@ -88,7 +88,7 @@ dce modules entryPoints =
   verts :: [(DCEVertex, Key, [Key])]
   verts = do
       Module _ mn _ _ _ mf ds <- modules
-      concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn . fst) `map` mf
+      concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
     where
     toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]
     toVertices mn b@(NonRec _ i e) = [(BindVertex b, mkQualified i mn, deps e)]
@@ -130,7 +130,7 @@ dce modules entryPoints =
     $ sortBy (\(_, k1, _) (_, k2, _) -> getQual k1 `compare` getQual k2)
     $ map keyForVertex (concatMap (reachable graph) entryPointVertices)
 
-  reachableInModule :: [([(DCEVertex, Key, [Key])], ModuleT t Ann)]
+  reachableInModule :: [([(DCEVertex, Key, [Key])], Module Ann)]
   reachableInModule = do
     vs <- reachableList
     m <- modules
