@@ -31,9 +31,10 @@ foldrJSCommaList _ JSLNil b = b
 foldrJSCommaList fn (JSLOne a) !b = fn a b
 foldrJSCommaList fn (JSLCons as _ a) !b = foldrJSCommaList fn as (fn a b)
 
--- | Filter export statements in a foreign module.  This is not 100% safe.  It
--- might remove declarations that are used somewhere in the foreign module
--- (for example by using `eval`).
+-- |
+-- Filter export statements in a foreign module.  This is not 100% safe.  It
+-- might remove declarations that are used somewhere in the foreign module (for
+-- example by using @'eval'@).
 dceForeignModule :: [Ident] -> [JSStatement] -> [JSStatement]
 dceForeignModule is stmts = filter filterExports stmts
 
@@ -51,7 +52,6 @@ dceForeignModule is stmts = filter filterExports stmts
         || any (isUsedInStmt t) nonExps
         -- it is used in any non export statements
 
-  -- |
   -- Build a graph of exports statements.  Its initial set of edges point from
   -- an export statement to all other export statements that are using it.
   -- When checking if we need to include that vartex we just check if there is
@@ -97,7 +97,6 @@ dceForeignModule is stmts = filter filterExports stmts
   exportStatementName (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ i) _) _ _ _) = Just . unquote . T.pack $ i
   exportStatementName _ = Nothing
 
-  -- |
   -- Check if (export) identifier is used within a JSStatement.
   isUsedInStmt :: Text -> JSStatement -> Bool
   isUsedInStmt n (JSStatementBlock _ ss _ _) = any (isUsedInStmt n) ss
@@ -125,7 +124,6 @@ dceForeignModule is stmts = filter filterExports stmts
   isUsedInStmt _ JSConstant{} = False
   isUsedInStmt _ JSContinue{} = False
 
-  -- |
   -- Check is (export) identifier is used withing a JSExpression
   isUsedInExpr :: Text -> JSExpression -> Bool
   isUsedInExpr n (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ i)) = n == T.pack i
@@ -166,13 +164,11 @@ dceForeignModule is stmts = filter filterExports stmts
     fn :: JSExpression -> Bool -> Bool
     fn e b = isUsedInExpr n e || b
 
-  -- |
   -- Check if (export) identifier is used withing a JSSitchParts
   isUsedInSwitchParts :: Text -> JSSwitchParts -> Bool
   isUsedInSwitchParts n (JSCase _ e _ ss) = isUsedInExpr n e || any (isUsedInStmt n) ss
   isUsedInSwitchParts n (JSDefault _ _ ss) = any (isUsedInStmt n) ss
 
-  -- |
   -- Check if (export) identifier is used withing a JSTryCatch
   isUsedInTryCatch :: Text -> JSTryCatch -> Bool
   isUsedInTryCatch n (JSCatch _ _ e _ (JSBlock _ ss _)) = isUsedInExpr n e || any (isUsedInStmt n) ss

@@ -25,12 +25,15 @@ data DCEVertex
   = BindVertex (Bind Ann)
   | ForeignVertex (Qualified Ident)
 
+-- |
+-- Dead code elimination of a list of modules module
 dce
   :: forall m
    . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
-  => [Module Ann]
-  -> [Qualified Ident]
-  -> m [Module Ann]
+  => [Module Ann]       -- ^ modules to dce
+  -> [Qualified Ident]  -- ^ entry points used to build the graph of
+                        --   dependencies across module boundaries
+  -> m [Module Ann]     -- ^ dead code eliminated modules
 dce _ [] = throwError NoEntryPointFound
 dce modules entryPoints =
   if null entryPointVertices then throwError NoEntryPointFound else do
@@ -141,8 +144,9 @@ dce modules entryPoints =
   getModuleName [] = Nothing
   getModuleName ((_, k, _) : _) = getQual k
 
--- DCE of local identifiers
--- detect and remove unused bindings
+-- |
+-- Dead code elimination of local identifiers in `Bind`s, which detects and
+-- removes unused bindings.
 dceExpr :: Bind Ann -> Bind Ann
 dceExpr = go
   where

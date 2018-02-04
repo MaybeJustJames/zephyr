@@ -23,6 +23,17 @@ import Safe (atMay)
 
 type Stack = [[(Ident, Expr Ann)]]
 
+-- |
+-- Evaluate expressions in a module:
+--
+-- * @Data.Eq.eq@ of two literals
+-- * @Data.Array.index@ on a literal array
+-- * Object accessors
+-- * Semigroup operations (@Array@, @String@, @Unit@)
+-- * Semiring operations (@Unit@, @Unit@, @Unit@)
+--
+-- Keep stack of local identifiers from @let@ and @case@ expressions, ignoring
+-- the ones that are comming from abstractions.
 dceEval
   :: forall m
    . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
@@ -37,12 +48,12 @@ dceEval mods = traverse go mods
 
   (onBind', _) = everywhereOnValuesM onBind onExpr onBinders
     (modify $ second (drop 1))
-    -- pop recent value in the stack (it was added in `onBinders`
+    -- pop recent value in the stack (it was added in `onBinders`)
 
   onBind :: Bind Ann -> StateT (ModuleName, Stack) m (Bind Ann)
   onBind b = modify (second (unBind b :)) *> return b
 
-  -- | 
+  -- |
   -- Track local identifiers in case binders, push them onto the stack.
   onBinders
     :: [Expr Ann]
