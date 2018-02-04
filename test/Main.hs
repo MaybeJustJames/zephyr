@@ -365,6 +365,13 @@ karmaSpec =
     forM_ karmaTests $ \l@(KarmaTest repo _) ->
         specify (T.unpack repo) $ assertKarma l
 
+changeDir :: FilePath -> Spec -> Spec
+changeDir path = around_
+  $ \runTest -> do
+      cwd <- getCurrentDirectory
+      setCurrentDirectory path
+      runTest
+      setCurrentDirectory cwd
 
 main :: IO ()
 main = do
@@ -375,13 +382,8 @@ main = do
   TestDCEEval.main
 
   createDirectoryIfMissing False ".temp"
-  setCurrentDirectory ".temp"
-  hspec coreLibSpec
-  setCurrentDirectory ".."
+  hspec $ changeDir ".temp" coreLibSpec
 
-  getCurrentDirectory >>= putStrLn
-  setCurrentDirectory "test/tests"
-  hspec libSpec
-  setCurrentDirectory "../.."
+  hspec $ changeDir "test/tests" libSpec
 
   hspec karmaSpec
