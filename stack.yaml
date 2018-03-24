@@ -4,8 +4,8 @@ packages:
 - .
 - location:
     git: git@github.com:purescript/purescript.git
-    commit: a5aad4a0d08d53a468454b1f4a2ef0bd04d6cd24
+    commit: e970a4fad0b6842896b9686bd8dd7c6f62d40671
   extra-dep: true
 extra-deps:
 - pipes-http-1.0.5
-resolver: nightly-2017-09-10
+resolver: lts-10.3
