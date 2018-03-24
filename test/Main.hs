@@ -42,47 +42,47 @@ data CoreLibTest = CoreLibTest
 
 coreLibs :: [CoreLibTest]
 coreLibs =
-  [ CoreLibTest "git@github.com:alexmingoia/purescript-pux" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:bodil/purescript-smolder" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:bodil/purescript-signal" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:bodil/purescript-test-unit" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:slamdata/purescript-aff" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:slamdata/purescript-avar" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:slamdata/purescript-matryoshka" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:slamdata/purescript-routing" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:slamdata/purescript-routing" []
+  [ CoreLibTest "https://github.com/alexmingoia/purescript-pux.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/bodil/purescript-smolder.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/bodil/purescript-signal.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/bodil/purescript-test-unit.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/slamdata/purescript-aff.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/slamdata/purescript-avar.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/slamdata/purescript-matryoshka.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/slamdata/purescript-routing.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/slamdata/purescript-routing.git" []
       ["Routing.matches"]
       Nothing
       (Just
         ( "console.log(Object.keys(require('./dce-output/Routing')))"
         , "[ 'hashes', 'matches', 'matches\\'', 'matchWith', 'hashChanged' ]"))
-  , CoreLibTest "git@github.com:slamdata/purescript-search" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/slamdata/purescript-search.git" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest
-      "git@github.com:purescript/purescript-console"
+      "https://github.com/purescript/purescript-console.git"
       []
       ["Control.Monad.Eff.Console.log"]
       Nothing
       (Just
         ( "require('./dce-output/Control.Monad.Eff.Console').log('hello')()"
         , "hello"))
-  , CoreLibTest "git@github.com:purescript/purescript-free" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-prelude" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-free.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-prelude.git" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest
-      "git@github.com:purescript/purescript-partial"
+      "https://github.com/purescript/purescript-partial.git"
       []
       ["Test.Main.main", "Test.Main.safely", "Test.Main.safely2"]
       Nothing
       (Just
         ( "var r = require('./dce-output/Test.Main'); console.log(r.safely == r.safely2)"
         , "true"))
-  , CoreLibTest "git@github.com:purescript/purescript-arrays" [] ["Test.Main.main"] (Just ["-f"]) Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-control" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-free" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-enums" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-generics-rep" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-maps" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-record" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-refs"
+  , CoreLibTest "https://github.com/purescript/purescript-arrays.git" [] ["Test.Main.main"] (Just ["-f"]) Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-control.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-free.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-enums.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-generics-rep.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-maps.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-record.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-refs.git"
       []
       ["Control.Monad.Eff.Ref.newRef", "Control.Monad.Eff.Ref.readRef", "Control.Monad.Eff.Ref.writeRef"]
       Nothing
@@ -90,29 +90,29 @@ coreLibs =
         ( "console.log(Object.keys(require('./dce-output/Control.Monad.Eff.Ref')))"
         , "[ 'newRef', 'readRef', 'writeRef' ]"
         ))
-  , CoreLibTest "git@github.com:purescript/purescript-strings" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-transformers" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-quickcheck" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript/purescript-unsafe-coerce" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-argonaut" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-argonaut-codecs" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-argonaut-core" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-argonaut-generic" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-argonaut-traversals" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-foreign-lens" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-handlebars" ["handlebars"] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-js-date" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-lens" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-profunctor-lenses" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-nullable" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-options" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-parsing" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-precise" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-string-parsers" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-strongcheck" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-unicode" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-js-timers" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "git@github.com:purescript-contrib/purescript-unsafe-reference" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-strings.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-transformers.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-quickcheck.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript/purescript-unsafe-coerce.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-argonaut.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-argonaut-codecs.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-argonaut-core.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-argonaut-generic.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-argonaut-traversals.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-foreign-lens.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-handlebars.git" ["handlebars"] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-js-date.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-lens.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-profunctor-lenses.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-nullable.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-options.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-parsing.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-precise.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-string-parsers.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-strongcheck.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-unicode.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-js-timers.git" [] ["Test.Main.main"] Nothing Nothing
+  , CoreLibTest "https://github.com/purescript-contrib/purescript-unsafe-reference.git" [] ["Test.Main.main"] Nothing Nothing
   ]
 
 data LibTest = LibTest
@@ -137,8 +137,8 @@ data KarmaTest = KarmaTest
 
 karmaTests :: [KarmaTest]
 karmaTests = 
-  [ KarmaTest "git@github.com:coot/purescript-react-hocs" "Test.Main.main"
-  , KarmaTest "git@github.com:coot/purescript-react-redox""Test.Karma.Main.main"
+  [ KarmaTest "https://github.com/coot/purescript-react-hocs.git" "Test.Main.main"
+  , KarmaTest "https://github.com/coot/purescript-react-redox.git""Test.Karma.Main.main"
   ]
 
 data TestError
@@ -367,10 +367,11 @@ karmaSpec =
 
 changeDir :: FilePath -> Spec -> Spec
 changeDir path = around_
-  $ \runTest -> do
+  $ \runTests -> do
+      createDirectoryIfMissing False path
       cwd <- getCurrentDirectory
       setCurrentDirectory path
-      runTest
+      runTests
       setCurrentDirectory cwd
 
 main :: IO ()
@@ -381,9 +382,6 @@ main = do
   TestDCECoreFn.main
   TestDCEEval.main
 
-  createDirectoryIfMissing False ".temp"
-  hspec $ changeDir ".temp" coreLibSpec
-
   hspec $ changeDir "test/tests" libSpec
-
+  hspec $ changeDir ".temp" coreLibSpec
   hspec karmaSpec
