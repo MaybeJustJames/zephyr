@@ -3,7 +3,7 @@ extra-package-dbs: []
 packages:
 - .
 - location:
-    git: git@github.com:purescript/purescript.git
+    git: https://github.com/purescript/purescript.git
     commit: e970a4fad0b6842896b9686bd8dd7c6f62d40671
   extra-dep: true
 extra-deps:
