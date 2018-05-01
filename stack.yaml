@@ -3,8 +3,8 @@ extra-package-dbs: []
 packages:
 - .
 - location:
-    git: https://github.com/purescript/purescript.git
-    commit: 939f4bd2f145e243e57b267b439085aae87983f2
+    git: https://github.com/coot/purescript.git
+    commit: 459d9aa4f0dea548938fab2790e9dbeaabf91d0e
   extra-dep: true
 extra-deps:
 - pipes-http-1.0.5

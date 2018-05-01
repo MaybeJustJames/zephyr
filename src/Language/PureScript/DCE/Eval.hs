@@ -44,7 +44,7 @@ dceEval mods = traverse go mods
   go :: Module Ann -> m (Module Ann)
   go Module{..} = do
     decls <- (flip evalStateT (moduleName, []) . onBind') `traverse` moduleDecls
-    return $ Module moduleComments moduleName modulePath moduleImports moduleExports moduleForeign decls
+    return $ Module moduleSourceSpan moduleComments moduleName modulePath moduleImports moduleExports moduleForeign decls
 
   (onBind', _) = everywhereOnValuesM onBind onExpr onBinders
     (modify $ second (drop 1))
@@ -453,7 +453,7 @@ dceEval mods = traverse go mods
     <|> Left  <$> join (getFirst . foldMap ffIdent . moduleForeign <$> mod)
     where
     mod :: Maybe (Module Ann)
-    mod = getFirst $ foldMap (\m@(Module _ mn' _ _ _ _ _) -> if mn' == mn then First (Just m) else First Nothing) mods
+    mod = getFirst $ foldMap (\m@(Module _ _ mn' _ _ _ _ _) -> if mn' == mn then First (Just m) else First Nothing) mods
 
     fIdent :: (Ident, Expr Ann) -> First (Expr Ann)
     fIdent (i', e) | i == i'    = First (Just e)

@@ -54,7 +54,11 @@ executable zephyr
   hs-source-dirs: app
   main-is: Main.hs
   other-modules: Command.DCE
-  default-extensions: DataKinds FlexibleContexts OverloadedStrings
+  default-extensions:
+    DataKinds
+    FlexibleContexts
+    OverloadedStrings
+    RecordWildCards
   ghc-options:
     -Wall
     -O2
@@ -87,7 +91,13 @@ executable zephyr
 test-suite zephyr-test
   type: exitcode-stdio-1.0
   hs-source-dirs: test
-  default-extensions: DataKinds DoAndIfThenElse FlexibleInstances TupleSections OverloadedStrings RecordWildCards
+  default-extensions:
+    DataKinds
+    DoAndIfThenElse
+    FlexibleInstances
+    OverloadedStrings
+    RecordWildCards
+    TupleSections
   main-is: Main.hs
   build-depends:      
       aeson >=1.0 && <1.3

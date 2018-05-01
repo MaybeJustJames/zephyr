@@ -21,8 +21,9 @@ data DCEOptions = DCEOptions
   { dceEntryPoints :: [EntryPoint]
   , dceInputDir :: FilePath
   , dceOutputDir :: FilePath
-  , dceDumpCoreFn :: Bool
   , dceVerbose :: Bool
   , dceForeign :: Bool
   , dcePureScriptOptions :: P.Options
+  , dceUsePrefix :: Bool
+  , dceJsonErrors :: Bool
   }

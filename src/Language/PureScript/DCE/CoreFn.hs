@@ -83,14 +83,14 @@ dce modules entryPoints =
         foreigns = filter ((`S.member` reachableSet) . Qualified (Just moduleName)) moduleForeign
           where
             reachableSet = foldr' (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks) S.empty vs
-    in Module moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
+    in Module moduleSourceSpan moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
 
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
   -- | The Vertex set.
   verts :: [(DCEVertex, Key, [Key])]
   verts = do
-      Module _ mn _ _ _ mf ds <- modules
+      Module _ _ mn _ _ _ mf ds <- modules
       concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
     where
     toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]

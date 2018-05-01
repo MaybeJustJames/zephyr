@@ -15,63 +15,33 @@ import           Control.Monad.Trans.Except
 import           Control.Monad.Writer
 import qualified Data.Aeson as A
 import           Data.Aeson.Internal (JSONPath)
-import           Data.Aeson.Internal as A
+import qualified Data.Aeson.Internal as A
 import           Data.Aeson.Parser (eitherDecodeWith, json)
-import           Data.Aeson.Text (encodeToLazyText)
-import           Data.Aeson.Types (Value)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy.Char8 as B (toStrict, fromStrict)
+import qualified Data.ByteString.Lazy.Char8 as B (fromStrict, toStrict)
 import qualified Data.ByteString.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
 import           Data.List (intercalate, null)
 import qualified Data.Map as M
-import           Data.Maybe (fromJust, isJust, isNothing, listToMaybe)
+import           Data.Maybe (isNothing, listToMaybe)
 import           Data.Monoid ((<>))
 import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as T (toStrict)
-import qualified Data.Text.Encoding as TE
 import           Data.Traversable (for)
 import           Data.Version (Version)
-import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
-import qualified Language.PureScript.Bundle as P
-import qualified Language.PureScript.CodeGen.JS as P
-import qualified Language.PureScript.CodeGen.JS.Printer as P
 import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
-import qualified Language.PureScript.CoreFn.ToJSON as CoreFn
-import qualified Language.PureScript.CoreImp.AST as Imp
 import           Language.PureScript.DCE
 import qualified Language.PureScript.Errors.JSON as P
 import qualified Options.Applicative as Opts
-import           System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, getCurrentDirectory)
 import qualified System.Console.ANSI as ANSI
+import           System.Directory (doesDirectoryExist, getCurrentDirectory)
 import           System.Exit (exitFailure, exitSuccess)
-import           System.FilePath ((</>), takeDirectory)
 import           System.FilePath.Glob (compile, globDir1)
 import           System.IO (hPutStrLn, stderr)
-import qualified System.IO as IO
-
-printWarningsAndErrors :: Bool -> Bool -> P.MultipleErrors -> Either P.MultipleErrors a -> IO ()
-printWarningsAndErrors verbose False warnings errors = do
-  pwd <- getCurrentDirectory
-  cc <- bool Nothing (Just P.defaultCodeColor) <$> ANSI.hSupportsANSI stderr
-  let ppeOpts = P.defaultPPEOptions { P.ppeCodeColor = cc, P.ppeFull = verbose, P.ppeRelativeDirectory = pwd }
-  when (P.nonEmpty warnings) $
-    IO.hPutStrLn stderr (P.prettyPrintMultipleWarnings ppeOpts warnings)
-  case errors of
-    Left errs -> do
-      IO.hPutStrLn stderr (P.prettyPrintMultipleErrors ppeOpts errs)
-      exitFailure
-    Right _ -> return ()
-printWarningsAndErrors verbose True warnings errors = do
-  IO.hPutStrLn stderr . BU8.toString . B.toStrict . A.encode $
-    P.JSONResult (P.toJSONErrors verbose P.Warning warnings)
-               (either (P.toJSONErrors verbose P.Error) (const []) errors)
-  either (const exitFailure) (const (return ())) errors
 
 inputDirectoryOpt :: Opts.Parser FilePath
 inputDirectoryOpt = Opts.strOption $
@@ -97,12 +67,6 @@ entryPointOpt = Opts.argument (Opts.auto >>= checkIfQualified) $
   checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
     "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
   checkIfQualified e = return e
-
-dumpCoreFnOpt :: Opts.Parser Bool
-dumpCoreFnOpt = Opts.switch $
-     Opts.long "dump-corefn"
-  <> Opts.showDefault
-  <> Opts.help "Dump the (functional) core representation of the dce-ed."
 
 verboseOutputOpt :: Opts.Parser Bool
 verboseOutputOpt = Opts.switch $
@@ -160,6 +124,17 @@ targetParser =
       . T.unpack
       . T.strip
 
+noPrefix :: Opts.Parser Bool
+noPrefix = Opts.switch $
+     Opts.short 'p'
+  <> Opts.long "no-prefix"
+  <> Opts.help "Do not include comment header"
+
+jsonErrors :: Opts.Parser Bool
+jsonErrors = Opts.switch $
+     Opts.long "json-errors"
+  <> Opts.help "Print errors to stderr as JSON"
+
 pureScriptOptions :: Opts.Parser P.Options
 pureScriptOptions =
   P.Options
@@ -176,10 +151,11 @@ dceOptions = DCEOptions
   <$> Opts.some entryPointOpt
   <*> inputDirectoryOpt
   <*> outputDirectoryOpt
-  <*> dumpCoreFnOpt
   <*> verboseOutputOpt
   <*> dceForeignOpt
   <*> pureScriptOptions
+  <*> (not <$> noPrefix)
+  <*> jsonErrors
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
@@ -193,6 +169,25 @@ readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.rea
     -> Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
   addPath f = either (Left . incl) Right
     where incl (l,r) = (f,l,r)
+--
+-- | Argumnets: verbose, use JSON, warnings, errors
+printWarningsAndErrors :: Bool -> Bool -> P.MultipleErrors -> Either P.MultipleErrors a -> IO ()
+printWarningsAndErrors verbose False warnings errors = do
+  pwd <- getCurrentDirectory
+  cc <- bool Nothing (Just P.defaultCodeColor) <$> ANSI.hSupportsANSI stderr
+  let ppeOpts = P.defaultPPEOptions { P.ppeCodeColor = cc, P.ppeFull = verbose, P.ppeRelativeDirectory = pwd }
+  when (P.nonEmpty warnings) $
+    hPutStrLn stderr (P.prettyPrintMultipleWarnings ppeOpts warnings)
+  case errors of
+    Left errs -> do
+      hPutStrLn stderr (P.prettyPrintMultipleErrors ppeOpts errs)
+      exitFailure
+    Right _ -> return ()
+printWarningsAndErrors verbose True warnings errors = do
+  hPutStrLn stderr . BU8.toString . B.toStrict . A.encode $
+    P.JSONResult (P.toJSONErrors verbose P.Warning warnings)
+               (either (P.toJSONErrors verbose P.Error) (const []) errors)
+  either (const exitFailure) (const (return ())) errors
 
 data DCEAppError
   = ParseErrors [Text]
@@ -217,14 +212,14 @@ formatDCEAppError _ relPath (CompilationError err)
   = displayDCEError relPath err
 
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
-dceCommand opts = do
-    let entryPoints = runEntryPoint <$> dceEntryPoints opts
+dceCommand DCEOptions {..} = do
+    let entryPoints = runEntryPoint <$> dceEntryPoints
         cfnGlb = compile "**/corefn.json"
-    inpts <- liftIO $ globDir1 cfnGlb (dceInputDir opts) >>= readInput
+    inpts <- liftIO $ globDir1 cfnGlb dceInputDir >>= readInput
 
-    inptDirExist <- lift $ doesDirectoryExist (dceInputDir opts)
+    inptDirExist <- lift $ doesDirectoryExist dceInputDir
     unless inptDirExist $
-      throwError (InputNotDirectory (dceInputDir opts))
+      throwError (InputNotDirectory dceInputDir)
 
     let errs = lefts inpts
     unless (null errs) $
@@ -232,91 +227,32 @@ dceCommand opts = do
 
     let mPursVer = fmap fst . listToMaybe . rights $ inpts
     when (isNothing mPursVer) $
-      throwError (NoInputs (dceInputDir opts) )
-    let pursVer = fromJust mPursVer
+      throwError (NoInputs dceInputDir)
 
     case runWriterT $ dceEval (snd `map` rights inpts) >>= flip dce entryPoints of
       Left err -> throwError (CompilationError err)
       Right (mods, warns) -> do
         relPath <- lift getCurrentDirectory
         lift $ traverse (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
-        liftIO $ runCodegen mods (dceInputDir opts) (dceOutputDir opts)
-        when (dceDumpCoreFn opts)
-          (liftIO $ runDumpCoreFn pursVer mods (dceOutputDir opts))
+        let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
+        foreigns <- P.inferForeignModules filePathMap
+        let makeActions = P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix
+        (makeErrors, makeWarnings) <-
+          lift
+            $ P.runMake dcePureScriptOptions
+            $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions (CoreFn.moduleSourceSpan m) m P.initEnvironment mempty) mods
+        liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors makeWarnings makeErrors
+        return ()
   where
-    runCodegen :: [CoreFn.Module CoreFn.Ann] -> FilePath -> FilePath -> IO ()
-    runCodegen mods inputDir outputDir = do
-      -- I need to run `codegen` from `MakeActions` directly
-      -- runMake opts (make ...) accepts `PureScript.AST.Declarations.Module`
-      (makeErrors, makeWarnings) <- P.runMake (dcePureScriptOptions opts) $ runSupplyT 0 (forM mods codegen)
-      printWarningsAndErrors False False makeWarnings makeErrors
-      where
-      codegen :: CoreFn.Module CoreFn.Ann -> SupplyT P.Make ()
-      codegen m@(CoreFn.Module _ mn _ _ _ mf _) = do
-        let foreignInclude =
-              if null mf
-                then Nothing
-                else Just $ Imp.App Nothing (Imp.Var Nothing "require") [Imp.StringLiteral Nothing "./foreign"]
-        rawJs <- P.moduleToJs m foreignInclude
-        let pjs = P.prettyPrintJS rawJs
-        let filePath = T.unpack (P.runModuleName mn)
-            jsFile = outputDir </> filePath </> "index.js"
-            foreignInFile = inputDir </> filePath </> "foreign.js"
-            foreignOutFile = outputDir </> filePath </> "foreign.js"
-        when (isJust foreignInclude) $ do
-          lift $ P.makeIO
-            (const (P.ErrorMessage [] $ P.CannotReadFile foreignInFile))
-            (createDirectoryIfMissing True (outputDir </> filePath))
-          if dceForeign opts
-            then do
-              jsCode <- lift $ P.makeIO
-                (const $ P.ErrorMessage [] $ P.CannotReadFile foreignInFile)
-                (B.unpack <$> B.readFile foreignInFile)
-              case JS.parse jsCode foreignInFile of
-                Right (JS.JSAstProgram ss ann) -> do
-                  let ss' = dceForeignModule mf ss
-                      jsAst' = JS.JSAstProgram ss' ann
-                  lift $ P.makeIO
-                    (const $ P.ErrorMessage [] $ P.CannotWriteFile foreignOutFile)
-                    (B.writeFile foreignOutFile (TE.encodeUtf8 . T.toStrict $ JS.renderToText jsAst'))
-                Right _ -> throwError (P.errorMessage $ P.ErrorParsingFFIModule foreignInFile (Just P.InvalidTopLevel))
-                _ -> throwError (P.errorMessage $ P.ErrorParsingFFIModule foreignInFile Nothing)
-            else
-              lift $ P.makeIO
-                (const (P.ErrorMessage [] (P.CannotReadFile foreignInFile)))
-                (copyFile foreignInFile foreignOutFile)
-        lift $ writeTextFile jsFile $ TE.encodeUtf8 pjs
-
     formatErr :: (FilePath, JSONPath, String) -> Text
     formatErr (f, p, err) =
-      if dceVerbose opts
+      if dceVerbose
         then T.pack $ f ++ ":\n    " ++ A.formatError p err
         else T.pack f
 
-    runDumpCoreFn :: Version -> [CoreFn.Module CoreFn.Ann] -> FilePath -> IO ()
-    runDumpCoreFn pursVer mods outputDir = do
-      let jsons = (\m@(CoreFn.Module _ mn _ _ _ _ _ )
-            -> ( outputDir </> T.unpack (P.runModuleName mn) </> "corefn.json"
-               , A.object [ (P.runModuleName mn, CoreFn.moduleToJSON pursVer m) ]
-               )) <$> mods
-      sequence_ $ uncurry writeJsonFile <$> jsons
-
-    mkdirp :: FilePath -> IO ()
-    mkdirp = createDirectoryIfMissing True . takeDirectory
-
-    writeTextFile :: FilePath -> B.ByteString -> P.Make ()
-    writeTextFile path text = P.makeIO (const (P.ErrorMessage [] $ P.CannotWriteFile path)) $ do
-      mkdirp path
-      B.writeFile path text
-
-    writeJsonFile :: FilePath -> Value -> IO ()
-    writeJsonFile path v = do
-      mkdirp path
-      B.writeFile path . TE.encodeUtf8 . T.toStrict . encodeToLazyText $ v
-
 runDCECommand :: DCEOptions -> IO ()
 runDCECommand opts = do
-  res <- runExceptT (dceCommand opts)
+  res <- runExceptT $ dceCommand opts
   relPath <- getCurrentDirectory
   case res of
     Left e  -> (hPutStrLn stderr . formatDCEAppError opts relPath $ e) *> exitFailure
