@@ -37,6 +37,7 @@ library
     , containers
     , directory >=1.2.3
     , filepath
+    , formatting
     , Glob >=0.9 && <0.10
     , language-javascript >=0.6.0.9 && <0.7
     , mtl >=2.1.0 && <2.3.0
@@ -75,6 +76,7 @@ executable zephyr
     , containers
     , directory >=1.2.3
     , filepath
+    , formatting
     , Glob >=0.9 && <0.10
     , language-javascript >=0.6.0.9 && <0.7
     , mtl >=2.1.0 && <2.3.0

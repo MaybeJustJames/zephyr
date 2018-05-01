@@ -54,8 +54,8 @@ dce modules entryPoints =
   runDCE vs Module{..} = 
     let
         -- | filter declarations preserving the order
-        decls :: [Bind Ann]
-        decls = filter filterByIdents moduleDecls
+        moduleDecls' :: [Bind Ann]
+        moduleDecls' = dceExpr `map` filter filterByIdents moduleDecls
           where
           declIdents :: [Ident]
           declIdents = concatMap toIdents vs
@@ -68,22 +68,36 @@ dce modules entryPoints =
           filterByIdents = any (`elem` declIdents) . bindIdents
 
         idents :: [Ident]
-        idents = concatMap bindIdents decls
+        idents = concatMap bindIdents moduleDecls'
 
-        exports :: [Ident]
-        exports = filter (`elem` (idents ++ foreigns)) moduleExports
+        moduleExports' :: [Ident]
+        moduleExports' =
+          filter (`elem` (idents ++ moduleForeign')) moduleExports
 
         mods :: [ModuleName]
         mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
 
-        imports :: [(Ann, ModuleName)]
-        imports = filter ((`elem` mods) . snd) moduleImports
+        moduleImports' :: [(Ann, ModuleName)]
+        moduleImports' = filter ((`elem` mods) . snd) moduleImports
 
-        foreigns :: [Ident]
-        foreigns = filter ((`S.member` reachableSet) . Qualified (Just moduleName)) moduleForeign
+        moduleForeign' :: [Ident]
+        moduleForeign' = filter
+            ((`S.member` reachableSet) . Qualified (Just moduleName))
+            moduleForeign
           where
-            reachableSet = foldr' (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks) S.empty vs
-    in Module moduleSourceSpan moduleComments moduleName modulePath imports exports foreigns (dceExpr `map` decls)
+            reachableSet = foldr'
+              (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks)
+              S.empty vs
+
+    in Module
+          moduleSourceSpan
+          moduleComments
+          moduleName
+          modulePath
+          moduleImports'
+          moduleExports'
+          moduleForeign'
+          moduleDecls'
 
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
@@ -91,10 +105,12 @@ dce modules entryPoints =
   verts :: [(DCEVertex, Key, [Key])]
   verts = do
       Module _ _ mn _ _ _ mf ds <- modules
-      concatMap (toVertices mn) ds ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
+      concatMap (toVertices mn) ds
+        ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
     where
     toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]
-    toVertices mn b@(NonRec _ i e) = [(BindVertex b, mkQualified i mn, deps e)]
+    toVertices mn b@(NonRec _ i e) =
+      [(BindVertex b, mkQualified i mn, deps e)]
     toVertices mn b@(Rec bs) =
       let ks :: [(Key, [Key])]
           ks = map (\((_, i), e) -> (mkQualified i mn, deps e)) bs
@@ -116,7 +132,8 @@ dce modules entryPoints =
         onExpr _ = []
 
         onBinder :: Binder Ann -> [Key]
-        onBinder (ConstructorBinder _ _ c _) = [fmap (Ident . runProperName) c]
+        onBinder (ConstructorBinder _ _ c _) =
+          [fmap (Ident . runProperName) c]
         onBinder _ = []
 
   -- | Vertices corresponding to the entry points which we want to keep.
@@ -179,7 +196,9 @@ dceExpr = go
     verts = do
       let bes = unBind `concatMap` bs
       (i, e) <- bes
-      let deps = fst `map` filter ((\i' -> i' /= i && isUsedInExpr i' e)  . fst) bes
+      let deps = fst `map` filter fn bes
+            where
+              fn (i', _) = i' /= i && isUsedInExpr i' e
       return (i, i, deps)
 
     entryPointVertices :: [Vertex]
@@ -188,16 +207,21 @@ dceExpr = go
       guard $ isUsedInExpr i ex
       return (vertexForKey i)
 
-    reachableIdents = map ((\(_, i, _) -> i) . keyForVertex) $ reachable graph `concatMap` entryPointVertices
+    reachableIdents = map fn $ reachable graph `concatMap` entryPointVertices
+      where
+        fn v = case keyForVertex v of (_, i, _) -> i
   exprFn e = e
 
   isUsedInExpr :: Ident -> Expr Ann -> Bool
-  isUsedInExpr i (Literal _ (ArrayLiteral es)) = any (isUsedInExpr i) es
-  isUsedInExpr i (Literal _ (ObjectLiteral es)) = any (isUsedInExpr i . snd) es
+  isUsedInExpr i (Literal _ (ArrayLiteral es))
+    = any (isUsedInExpr i) es
+  isUsedInExpr i (Literal _ (ObjectLiteral es))
+    = any (isUsedInExpr i . snd) es
   isUsedInExpr _ (Literal _ _) = False
   isUsedInExpr i (Constructor _ _ _ is) = i `elem` is
   isUsedInExpr i (Accessor _ _ e) = isUsedInExpr i e
-  isUsedInExpr i (ObjectUpdate _ e ups) = isUsedInExpr i e || any (isUsedInExpr i . snd) ups
+  isUsedInExpr i (ObjectUpdate _ e ups)
+    = isUsedInExpr i e || any (isUsedInExpr i . snd) ups
   isUsedInExpr i (App _ (Abs _ i' e) r)
     = if isUsedInExpr i r
         then isUsedInExpr i' e
@@ -205,7 +229,8 @@ dceExpr = go
   isUsedInExpr i (App _ l r) = isUsedInExpr i l || isUsedInExpr i r
   isUsedInExpr i (Abs _ i' e) = i /= i' && isUsedInExpr i e
   isUsedInExpr i (Var _ qi) = qi == Qualified Nothing i
-  isUsedInExpr i (Case _ es alts) = any (isUsedInExpr i) es || any (isUsedInCaseAlternative i) alts
+  isUsedInExpr i (Case _ es alts)
+    = any (isUsedInExpr i) es || any (isUsedInCaseAlternative i) alts
   isUsedInExpr i (Let _ bs e) =
     if shadowed
         then used
@@ -229,5 +254,6 @@ dceExpr = go
         )
     &&
       (case ee of
-        Right e -> isUsedInExpr i e
-        Left es -> any (uncurry (||) . (isUsedInExpr i *** isUsedInExpr i)) es)
+          Right e -> isUsedInExpr i e
+          Left es
+            -> any (uncurry (||) . (isUsedInExpr i *** isUsedInExpr i)) es)

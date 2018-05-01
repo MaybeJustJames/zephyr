@@ -17,6 +17,7 @@ import qualified Data.Aeson as A
 import           Data.Aeson.Internal (JSONPath)
 import qualified Data.Aeson.Internal as A
 import           Data.Aeson.Parser (eitherDecodeWith, json)
+import           Data.Bifunctor (first)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as B (fromStrict, toStrict)
 import qualified Data.ByteString.UTF8 as BU8
@@ -31,6 +32,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Traversable (for)
 import           Data.Version (Version)
+import           Formatting (sformat, string, stext, (%))
 import qualified Language.PureScript as P
 import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
@@ -195,7 +197,7 @@ data DCEAppError
   | NoInputs FilePath
   | CompilationError (DCEError 'Error)
 
-formatDCEAppError :: DCEOptions -> FilePath -> DCEAppError -> String
+formatDCEAppError :: DCEOptions -> FilePath -> DCEAppError -> Text
 formatDCEAppError opts _ (ParseErrors errs) =
   let errs' =
         if dceVerbose opts
@@ -203,51 +205,62 @@ formatDCEAppError opts _ (ParseErrors errs) =
         else take 5 errs ++ case length $ drop 5 errs of
           0 -> []
           x -> ["... (" <> T.pack (show x) <> " more)"]
-  in colorString errorColor "Error" ++ ": Failed parsing:\n  " ++ T.unpack (T.intercalate "\n\t" errs')
+  in sformat
+        (string%": Failed parsing:\n  "%stext)
+        (colorString errorColor "Error")
+        (T.intercalate "\n\t" errs')
 formatDCEAppError _ _ (NoInputs path)
-  = colorString errorColor "Error" ++ ": No inputs found under " ++ colorString codeColor path ++ " directory.\n       Please run `purs compile --dump-corefn ..` or `pulp build -- --dump-corefn`"
+  = sformat
+        (stext%": No inputs found under "%string%" directory.\n       Please run `purs compile --dump-corefn ..` or `pulp build -- --dump-corefn`")
+        (colorText errorColor "Error")
+        (colorString codeColor path)
 formatDCEAppError _ _ (InputNotDirectory path)
-  = colorString errorColor "Error" ++ ": Directory " ++ colorString codeColor path ++ " does not exist."
+  = sformat
+        (stext%": Directory "%string%" does not exists.")
+        (colorText errorColor "Error")
+        (colorString codeColor path)
 formatDCEAppError _ relPath (CompilationError err)
-  = displayDCEError relPath err
+  = T.pack $ displayDCEError relPath err
 
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
 dceCommand DCEOptions {..} = do
-    let entryPoints = runEntryPoint <$> dceEntryPoints
-        cfnGlb = compile "**/corefn.json"
-    inpts <- liftIO $ globDir1 cfnGlb dceInputDir >>= readInput
-
+    -- initial checks
     inptDirExist <- lift $ doesDirectoryExist dceInputDir
     unless inptDirExist $
       throwError (InputNotDirectory dceInputDir)
 
+    -- read files, parse errors
+    let entryPoints = runEntryPoint <$> dceEntryPoints
+        cfnGlb = compile "**/corefn.json"
+    inpts <- liftIO $ globDir1 cfnGlb dceInputDir >>= readInput
     let errs = lefts inpts
     unless (null errs) $
-      throwError (ParseErrors $ formatErr `map` errs)
+      throwError (ParseErrors $ formatError `map` errs)
 
     let mPursVer = fmap fst . listToMaybe . rights $ inpts
     when (isNothing mPursVer) $
       throwError (NoInputs dceInputDir)
 
-    case runWriterT $ dceEval (snd `map` rights inpts) >>= flip dce entryPoints of
-      Left err -> throwError (CompilationError err)
-      Right (mods, warns) -> do
-        relPath <- lift getCurrentDirectory
-        lift $ traverse (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
-        let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
-        foreigns <- P.inferForeignModules filePathMap
-        let makeActions = P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix
-        (makeErrors, makeWarnings) <-
-          lift
-            $ P.runMake dcePureScriptOptions
-            $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
-        liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors makeWarnings makeErrors
-        return ()
+    -- run `dceEval` and `dce` on the `CoreFn`
+    (mods, warns) <- mapExceptT (fmap $ first CompilationError)
+        $ runWriterT
+        $ dceEval (snd `map` rights inpts) >>= flip dce entryPoints
+    relPath <- liftIO getCurrentDirectory
+    liftIO $ traverse (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
+    let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
+    foreigns <- P.inferForeignModules filePathMap
+    let makeActions = P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix
+    (makeErrors, makeWarnings) <-
+        liftIO
+        $ P.runMake dcePureScriptOptions
+        $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
+    liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors makeWarnings makeErrors
+    return ()
   where
-    formatErr :: (FilePath, JSONPath, String) -> Text
-    formatErr (f, p, err) =
+    formatError :: (FilePath, JSONPath, String) -> Text
+    formatError (f, p, err) =
       if dceVerbose
-        then T.pack $ f ++ ":\n    " ++ A.formatError p err
+        then sformat (string%":\n    "%string) f (A.formatError p err)
         else T.pack f
 
 runDCECommand :: DCEOptions -> IO ()
@@ -255,7 +268,7 @@ runDCECommand opts = do
   res <- runExceptT $ dceCommand opts
   relPath <- getCurrentDirectory
   case res of
-    Left e  -> (hPutStrLn stderr . formatDCEAppError opts relPath $ e) *> exitFailure
+    Left e  -> (hPutStrLn stderr . T.unpack . formatDCEAppError opts relPath $ e) *> exitFailure
     Right _ -> exitSuccess
 
 command :: Opts.Parser (IO ())

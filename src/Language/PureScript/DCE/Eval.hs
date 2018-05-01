@@ -6,6 +6,7 @@ import Control.Monad
 import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.Functor (($>))
 import Language.PureScript.AST.Literals
 import Language.PureScript.CoreFn
 import Language.PureScript.DCE.Errors
@@ -44,14 +45,22 @@ dceEval mods = traverse go mods
   go :: Module Ann -> m (Module Ann)
   go Module{..} = do
     decls <- (flip evalStateT (moduleName, []) . onBind') `traverse` moduleDecls
-    return $ Module moduleSourceSpan moduleComments moduleName modulePath moduleImports moduleExports moduleForeign decls
+    return $ Module
+      moduleSourceSpan
+      moduleComments
+      moduleName
+      modulePath
+      moduleImports
+      moduleExports
+      moduleForeign
+      decls
 
   (onBind', _) = everywhereOnValuesM onBind onExpr onBinders
     (modify $ second (drop 1))
     -- pop recent value in the stack (it was added in `onBinders`)
 
   onBind :: Bind Ann -> StateT (ModuleName, Stack) m (Bind Ann)
-  onBind b = modify (second (unBind b :)) *> return b
+  onBind b = modify (second (unBind b :)) $> b
 
   -- |
   -- Track local identifiers in case binders, push them onto the stack.
@@ -83,7 +92,7 @@ dceEval mods = traverse go mods
     :: Expr Ann
     -> StateT (ModuleName, Stack) m (Expr Ann)
   onExpr (Case ann es cs) = do
-    es' <- map (join . fmap castToLiteral) <$> traverse eval es
+    es' <- map (>>= castToLiteral) <$> traverse eval es
     let cs' = getFirst $ foldMap (fndCase (fromJust `map` es')) cs
     if all isJust es'
       then case cs' of
@@ -95,9 +104,14 @@ dceEval mods = traverse go mods
           -> do
             gs' <- fltGuards gs
             return $ Case ann es [CaseAlternative bs (Left gs')]
-      else return $ Case ann es $ filter (fltBinders es' . caseAlternativeBinders) cs
+      else
+        return
+          $ Case ann es
+          $ filter (fltBinders es' . caseAlternativeBinders) cs
     where
-    fltGuards :: [(Guard Ann, Expr Ann)] -> StateT (ModuleName, Stack) m [(Guard Ann, Expr Ann)]
+    fltGuards
+      :: [(Guard Ann, Expr Ann)]
+      -> StateT (ModuleName, Stack) m [(Guard Ann, Expr Ann)]
     fltGuards [] = return []
     fltGuards ((g,e):rest) = do
       v <- eval g
@@ -108,7 +122,7 @@ dceEval mods = traverse go mods
           | otherwise -- guard expression must evaluate to a Boolean
           -> fltGuards rest
         _ -> ((g,e) :) <$> fltGuards rest
-  onExpr l@Let {} = modify (second (drop 1)) *> return l
+  onExpr l@Let {} = modify (second (drop 1)) $> l
   onExpr e@Var{} = do
     v <- eval e
     case v of
@@ -150,7 +164,10 @@ dceEval mods = traverse go mods
     (App ann
       (App _
         (App _
-          (Var _ (Qualified (Just (ModuleName [ProperName "Data", ProperName "Eq"])) (Ident "eq")))
+          (Var _
+            (Qualified
+              (Just (ModuleName [ProperName "Data", ProperName "Eq"]))
+              (Ident "eq")))
           (Var _ inst))
           e1)
       e2)
@@ -180,18 +197,24 @@ dceEval mods = traverse go mods
     eval e
   eval (App _
           (App _
-            (Var ann@(ss, _, _, _) (Qualified (Just (ModuleName [ProperName "Data", ProperName "Array"])) (Ident "index")))
+            (Var ann@(ss, _, _, _)
+              (Qualified
+                (Just (ModuleName [ProperName "Data", ProperName "Array"]))
+                (Ident "index")))
             (Literal _ (ArrayLiteral as)))
           (Literal _ (NumericLiteral (Left x))))
     = do
       (mn, _) <- get
       e <- maybe
-            (tell [ArrayIdxOutOfBound mn ann x] *> return Nothing)
+            (tell [ArrayIdxOutOfBound mn ann x] $> Nothing)
             eval
             (as `atMay` fromIntegral x)
       return
           $ App ann
-              (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"])) (Qualified (Just (ModuleName [ProperName "Data", ProperName "Maybe"])) (Ident "Just")))
+              (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"]))
+                (Qualified
+                  (Just (ModuleName [ProperName "Data", ProperName "Maybe"]))
+                  (Ident "Just")))
         <$> e
   -- | Eval Semigroup
   eval
@@ -228,13 +251,19 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.semiring) (Ident "semiringInt")
     , Literal _ (NumericLiteral (Left a1)) <- e1
     , Literal _ (NumericLiteral (Left a2)) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (a1 + a2)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Left (a1 + a2)))
     | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
     , Literal _ (NumericLiteral (Right a1)) <- e1
     , Literal _ (NumericLiteral (Right a2)) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (a1 + a2)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Right (a1 + a2)))
     | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -242,11 +271,19 @@ dceEval mods = traverse go mods
       (Var _ (Qualified (Just C.Semiring) (Ident "zero")))
       (Var _ qi))
     | qi == Qualified (Just C.semiring) (Ident "semiringInt")
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left 0))
-    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right 0.0))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Left 0))
+    | qi == Qualified
+        (Just C.semiring)
+        (Ident "semiringNumber")
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Right 0.0))
     | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
-    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just  $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -254,11 +291,17 @@ dceEval mods = traverse go mods
       (Var _ (Qualified (Just C.Semiring) (Ident "one")))
       (Var _ qi))
     | qi == Qualified (Just C.semiring) (Ident "semiringInt")
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left 1))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Left 1))
     | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right 1.0))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Right 1.0))
     | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
-    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just  $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -272,13 +315,19 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.semiring) (Ident "semiringInt")
     , Literal _ (NumericLiteral (Left a1)) <- e1
     , Literal _ (NumericLiteral (Left a2)) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (a1 * a2)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Left (a1 * a2)))
     | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
     , Literal _ (NumericLiteral (Right a1)) <- e1
     , Literal _ (NumericLiteral (Right a2)) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (a1 * a2)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Right (a1 * a2)))
     | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   -- || Eval Ring
@@ -293,13 +342,19 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.ring) (Ident "ringInt")
     , Literal _ (NumericLiteral (Left a1)) <- e1
     , Literal _ (NumericLiteral (Left a2)) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (quot a1 a2)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Left (quot a1 a2)))
     | qi == Qualified (Just C.ring) (Ident "ringNumber")
     , Literal _ (NumericLiteral (Right a1)) <- e1
     , Literal _ (NumericLiteral (Right a2)) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (a1 / a2)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Right (a1 / a2)))
     | qi == Qualified (Just C.ring) (Ident "unitRing")
-    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just  $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
   eval
     (App (ss, c, _, _)
       (App _
@@ -308,12 +363,18 @@ dceEval mods = traverse go mods
       e)
     | qi == Qualified (Just C.ring) (Ident "ringInt")
     , Literal _ (NumericLiteral (Left a)) <- e
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Left (-a)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Left (-a)))
     | qi == Qualified (Just C.ring) (Ident "ringNumber")
     , Literal _ (NumericLiteral (Right a)) <- e
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (NumericLiteral (Right (-a)))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (NumericLiteral (Right (-a)))
     | qi == Qualified (Just C.ring) (Ident "unitRing")
-    = return $ Just  $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just  $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
   -- | Eval HeytingAlgebra
   eval
     (App (ss, c, _, _)
@@ -322,7 +383,9 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral False)
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -332,7 +395,9 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral True)
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -343,9 +408,13 @@ dceEval mods = traverse go mods
       e)
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b) <- e
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (not b))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (BooleanLiteral (not b))
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -359,9 +428,13 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (not b1 && b2))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (BooleanLiteral (not b1 && b2))
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -375,9 +448,13 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (b1 || b2))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (BooleanLiteral (b1 || b2))
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval
@@ -391,9 +468,13 @@ dceEval mods = traverse go mods
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
-    = return $ Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral (b1 && b2))
+    = return $ Just $ Literal
+        (ss, c, Nothing, Nothing)
+        (BooleanLiteral (b1 && b2))
     | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
-    = return $ Just $ Var (ss, c, Nothing, Nothing) (Qualified (Just C.unit) (Ident "unit"))
+    = return $ Just $ Var
+        (ss, c, Nothing, Nothing)
+        (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
   eval _ = return Nothing
@@ -449,11 +530,11 @@ dceEval mods = traverse go mods
   findQualifiedExpr (ModuleName (ProperName "Prim" : _)) _ = Just (Left ())
   findQualifiedExpr (ModuleName [ProperName "Data", ProperName "Generic"]) (Ident "anyProxy") = Just (Left ())
   findQualifiedExpr mn i
-      = Right <$> join (getFirst . foldMap fIdent . concatMap unBind . moduleDecls <$> mod)
-    <|> Left  <$> join (getFirst . foldMap ffIdent . moduleForeign <$> mod)
+      = Right <$> (mod >>= getFirst . foldMap fIdent . concatMap unBind . moduleDecls)
+    <|> Left  <$> (mod >>= getFirst . foldMap ffIdent . moduleForeign)
     where
     mod :: Maybe (Module Ann)
-    mod = getFirst $ foldMap (\m@(Module _ _ mn' _ _ _ _ _) -> if mn' == mn then First (Just m) else First Nothing) mods
+    mod = getFirst $ foldMap (\m -> if moduleName m == mn then First (Just m) else First Nothing) mods
 
     fIdent :: (Ident, Expr Ann) -> First (Expr Ann)
     fIdent (i', e) | i == i'    = First (Just e)
