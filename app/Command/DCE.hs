@@ -144,7 +144,7 @@ pureScriptOptions =
   where
     -- Ensure that the JS target is included if sourcemaps are
     handleTargets :: [P.CodegenTarget] -> S.Set P.CodegenTarget
-    handleTargets ts = S.fromList (if elem P.JSSourceMap ts then P.JS : ts else ts)
+    handleTargets ts = S.fromList (if P.JSSourceMap `elem` ts then P.JS : ts else ts)
 
 dceOptions :: Opts.Parser DCEOptions
 dceOptions = DCEOptions
@@ -240,7 +240,7 @@ dceCommand DCEOptions {..} = do
         (makeErrors, makeWarnings) <-
           lift
             $ P.runMake dcePureScriptOptions
-            $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions (CoreFn.moduleSourceSpan m) m P.initEnvironment mempty) mods
+            $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
         liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors makeWarnings makeErrors
         return ()
   where

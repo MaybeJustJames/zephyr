@@ -4,7 +4,7 @@ packages:
 - .
 - location:
     git: https://github.com/coot/purescript.git
-    commit: 459d9aa4f0dea548938fab2790e9dbeaabf91d0e
+    commit: cbda52a93362fd902340b2663f6823d3a7d46c93
   extra-dep: true
 extra-deps:
 - pipes-http-1.0.5
