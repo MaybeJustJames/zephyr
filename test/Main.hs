@@ -20,7 +20,7 @@ import           System.Directory
                   )
 import           System.Exit (ExitCode(..))
 import           System.IO (hSetEncoding, stdout, stderr, utf8)
-import           System.Process (readProcessWithExitCode)
+import           System.Process (readProcess, readProcessWithExitCode)
 import           Test.Hspec
 import           Test.HUnit (assertEqual)
 
@@ -77,7 +77,6 @@ coreLibs =
         , "true"))
   , CoreLibTest "https://github.com/purescript/purescript-arrays.git" [] ["Test.Main.main"] (Just ["-f"]) Nothing
   , CoreLibTest "https://github.com/purescript/purescript-control.git" [] ["Test.Main.main"] Nothing Nothing
-  , CoreLibTest "https://github.com/purescript/purescript-free.git" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "https://github.com/purescript/purescript-enums.git" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "https://github.com/purescript/purescript-generics-rep.git" [] ["Test.Main.main"] Nothing Nothing
   , CoreLibTest "https://github.com/purescript/purescript-maps.git" [] ["Test.Main.main"] Nothing Nothing
@@ -125,7 +124,7 @@ data LibTest = LibTest
 
 libTests :: [LibTest]
 libTests =
-  [ LibTest ["Unsafe.Coerce.Test.main"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
+  [ LibTest ["Unsafe.Coerce.Test.unsafeX"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
   ]
 
 data KarmaTest = KarmaTest
@@ -178,15 +177,15 @@ isGitError _ = False
 
 cloneRepo
   :: Text
-  -> ExceptT TestError IO ()
+  -> ExceptT TestError IO FilePath
 cloneRepo coreLibTestRepo = do
-  let dir = last $ T.splitOn "/" coreLibTestRepo
+  let dir = head $ T.splitOn "." $ last $ T.splitOn "/" coreLibTestRepo
 
   repoExist <- lift $ doesDirectoryExist $ T.unpack dir
-  when (not repoExist) $ do
+  unless repoExist $ do
     (ecGit, _, errGc) <- lift $ readProcessWithExitCode "git" ["clone", "--depth", "1", T.unpack coreLibTestRepo, T.unpack dir] ""
     when (ecGit /= ExitSuccess) (throwError (GitError coreLibTestRepo ecGit errGc))
-  lift $ setCurrentDirectory (T.unpack dir)
+  return (T.unpack dir)
 
 npmInstall
   :: Text
@@ -219,9 +218,12 @@ pursCompile coreLibTestRepo = do
   when (not outputDirExists) $ do
     (ecPurs, _, errPurs) <- lift
       $ readProcessWithExitCode
-          "purs"
-          [ "compile"
-          , "--dump-corefn"
+          "stack"
+          [ "exec"
+          , "purs"
+          , "--"
+          , "compile"
+          , "--codegen" , "corefn"
           , "bower_components/purescript-*/src/**/*.purs"
           , "src/**/*.purs"
           , "test/**/*.purs"
@@ -244,7 +246,8 @@ runZephyr coreLibTestRepo coreLibTestEntries zephyrOptions = do
 
 runCoreLibTest :: CoreLibTest -> ExceptT TestError IO ()
 runCoreLibTest (CoreLibTest {..}) = do
-  cloneRepo coreLibTestRepo
+  dir <- cloneRepo coreLibTestRepo
+  lift $ setCurrentDirectory dir
   npmInstall coreLibTestRepo coreLibTestNpmModules
   bowerInstall coreLibTestRepo
   pursCompile coreLibTestRepo
@@ -257,6 +260,8 @@ runCoreLibTest (CoreLibTest {..}) = do
         , T.unpack $ maybe defaultJsCmd fst coreLibTestJsCmd
         ]
         ""
+
+  lift $ setCurrentDirectory ".."
 
   when (ecNode /= ExitSuccess)
     (throwError $ NodeError coreLibTestRepo ecNode stdNode errNode)
@@ -289,7 +294,8 @@ runKarmaTest
   :: KarmaTest
   -> ExceptT TestError IO ()
 runKarmaTest KarmaTest{..} = do
-  cloneRepo karmaTestRepo
+  dir <- cloneRepo karmaTestRepo
+  lift $ setCurrentDirectory dir
   npmInstall karmaTestRepo []
   bowerInstall karmaTestRepo
   pursCompile karmaTestRepo
@@ -303,6 +309,7 @@ runKarmaTest KarmaTest{..} = do
         , "-o" , "karma/test.js"
         ]
         ""
+  lift $ setCurrentDirectory ".."
   when (ecBundle /= ExitSuccess) (throwError $ PursBundleError karmaTestRepo ecBundle errBundle)
 
   (ecBrowserify, _, errBrowserify) <- lift $ readProcessWithExitCode
@@ -329,14 +336,14 @@ assertCoreLib
   -> Expectation
 assertCoreLib l = do
   res <- runExceptT . runCoreLibTest $ l
-  assertEqual "should run" (Right ()) res
+  assertEqual "core lib should run" (Right ()) res
 
 assertLib
   :: LibTest
   -> Expectation
 assertLib l = do
   res <- runExceptT . runLibTest $ l
-  assertEqual "should run" (Right ()) res
+  assertEqual "lib should run" (Right ()) res
 
 assertKarma
   :: KarmaTest
@@ -345,7 +352,7 @@ assertKarma l = do
   res <- runExceptT . runKarmaTest $ l
   when (either (not . isGitError) (const True) res)
     (setCurrentDirectory "..")
-  assertEqual "should run" (Right ()) res
+  assertEqual "karma should run" (Right ()) res
 
 coreLibSpec :: Spec
 coreLibSpec = do
@@ -376,6 +383,8 @@ changeDir path = around_
 
 main :: IO ()
 main = do
+  readProcess "stack" ["exec", "purs", "--", "--version"] "" >>= putStrLn . (\v -> "\npurs version: " ++ v)
+
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 

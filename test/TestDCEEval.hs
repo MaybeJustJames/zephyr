@@ -21,8 +21,11 @@ import Test.HUnit (assertFailure)
 main :: IO ()
 main = hspec spec
 
+ss :: SourceSpan
+ss = SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0)
+
 ann :: Ann
-ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
+ann = ssAnn ss
 
 spec :: Spec
 spec =
@@ -30,7 +33,7 @@ spec =
     let eqModName = ModuleName [ProperName "Data", ProperName "Eq"]
         eq = Qualified (Just eqModName) (Ident "eq")
         eqBoolean  = Qualified (Just eqModName) (Ident "eqBoolean")
-        eqMod = Module [] eqModName "" [] []
+        eqMod = Module ss [] eqModName "" [] []
           [ Ident "refEq" ]
           [ NonRec ann (Ident "eq")  
               (Abs ann (Ident "dictEq")
@@ -45,22 +48,22 @@ spec =
               (Abs ann (Ident "eq")
                 (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified Nothing (Ident "eq")))])))
           ]
-        booleanMod = Module [] (ModuleName [ProperName "Data", ProperName "Boolean"]) "" [] [] []
+        booleanMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Boolean"]) "" [] [] []
           [ NonRec ann (Ident "otherwise") (Literal ann (BooleanLiteral True)) ]
-        arrayMod = Module [] (ModuleName [ProperName "Data", ProperName "Array"]) ""
+        arrayMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Array"]) ""
           [] [] []
           [ NonRec ann (Ident "index")
               (Abs ann (Ident "as")
                 (Abs ann (Ident "ix")
                   (Literal ann (CharLiteral 'f'))))
           ]
-        unsafeCoerceMod = Module [] C.unsafeCoerce ""
+        unsafeCoerceMod = Module ss [] C.unsafeCoerce ""
           [] [] []
           [ NonRec ann (Ident "unsafeCoerce")
               (Abs ann (Ident "x")
                 (Var ann (Qualified Nothing (Ident "x"))))
           ]
-        testMod e = Module [] mn mp [] [] []
+        testMod e = Module ss [] mn mp [] [] []
           [ NonRec ann (Ident "v") e
           , NonRec ann (Ident "f")
               (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "x"))))
@@ -71,7 +74,7 @@ spec =
 
         dceEvalExpr' :: Expr Ann -> [Module Ann] -> Either (DCEError 'Error) (Expr Ann)
         dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod e , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
-          Right (((Module _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
+          Right (((Module _ _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
           Right _   -> undefined
           Left err  -> Left err
 
@@ -201,7 +204,7 @@ spec =
 
     specify "should evaluate exported literal" $ do
       let um :: Module Ann
-          um = Module []
+          um = Module ss []
             (ModuleName [ProperName "Utils"])
             "src/Utils.purs"
             []
@@ -216,6 +219,7 @@ spec =
             ]
           mm :: Module Ann
           mm = Module
+            ss
             []
             (ModuleName [ProperName "Main"])
             "src/Main.purs"
@@ -224,7 +228,7 @@ spec =
             []
             [NonRec ann (Ident "main") e]
       case runWriterT $ dceEval [mm, um] of
-        Right (((Module _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _), _) -> return ()
+        Right (((Module _ _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _), _) -> return ()
         Right r -> assertFailure $ "unexpected result:\n" ++ show r
         Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -276,7 +280,7 @@ spec =
 
     context "Var inlining" $ do
       let oModName = ModuleName [ProperName "Other"]
-          oMod = Module [] oModName "" [] [] []
+          oMod = Module ss [] oModName "" [] [] []
             [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just eqModName) (Ident "eq"))) ])
             , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just eqModName) (Ident "eq")) ])
             , NonRec ann (Ident "s") $ Literal ann (StringLiteral (mkString "very-long-string"))

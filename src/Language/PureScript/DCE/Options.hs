@@ -24,4 +24,5 @@ data DCEOptions = DCEOptions
   , dceDumpCoreFn :: Bool
   , dceVerbose :: Bool
   , dceForeign :: Bool
+  , dcePureScriptOptions :: P.Options
   }

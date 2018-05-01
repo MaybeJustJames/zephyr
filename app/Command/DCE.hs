@@ -24,13 +24,16 @@ import qualified Data.ByteString.Lazy.Char8 as B (toStrict, fromStrict)
 import qualified Data.ByteString.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
-import           Data.List (null)
+import           Data.List (intercalate, null)
+import qualified Data.Map as M
 import           Data.Maybe (fromJust, isJust, isNothing, listToMaybe)
 import           Data.Monoid ((<>))
+import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T (toStrict)
 import qualified Data.Text.Encoding as TE
+import           Data.Traversable (for)
 import           Data.Version (Version)
 import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
@@ -115,6 +118,59 @@ dceForeignOpt = Opts.switch $
   <> Opts.showDefault
   <> Opts.help "dce foriegn modules"
 
+comments :: Opts.Parser Bool
+comments = Opts.switch $
+     Opts.short 'c'
+  <> Opts.long "comments"
+  <> Opts.help "Include comments in the generated code"
+
+verboseErrors :: Opts.Parser Bool
+verboseErrors = Opts.switch $
+     Opts.short 'v'
+  <> Opts.long "verbose-errors"
+  <> Opts.help "Display verbose error messages"
+
+codegenTargets :: Opts.Parser [P.CodegenTarget]
+codegenTargets = Opts.option targetParser $
+     Opts.short 'g'
+  <> Opts.long "codegen"
+  <> Opts.value [P.JS]
+  <> Opts.help
+      ( "Specifies comma-separated codegen targets to include. "
+      <> targetsMessage
+      <> " The default target is 'js', but if this option is used only the targets specified will be used."
+      )
+
+targets :: M.Map String P.CodegenTarget
+targets = M.fromList
+  [ ("js", P.JS)
+  , ("sourcemaps", P.JSSourceMap)
+  , ("corefn", P.CoreFn)
+  ]
+
+targetsMessage :: String
+targetsMessage = "Accepted codegen targets are '" <> intercalate "', '" (M.keys targets) <> "'."
+
+targetParser :: Opts.ReadM [P.CodegenTarget]
+targetParser =
+  Opts.str >>= \s ->
+    for (T.split (== ',') s)
+      $ maybe (Opts.readerError targetsMessage) pure
+      . flip M.lookup targets
+      . T.unpack
+      . T.strip
+
+pureScriptOptions :: Opts.Parser P.Options
+pureScriptOptions =
+  P.Options
+    <$> verboseErrors
+    <*> (not <$> comments)
+    <*> (handleTargets <$> codegenTargets)
+  where
+    -- Ensure that the JS target is included if sourcemaps are
+    handleTargets :: [P.CodegenTarget] -> S.Set P.CodegenTarget
+    handleTargets ts = S.fromList (if elem P.JSSourceMap ts then P.JS : ts else ts)
+
 dceOptions :: Opts.Parser DCEOptions
 dceOptions = DCEOptions
   <$> Opts.some entryPointOpt
@@ -123,6 +179,7 @@ dceOptions = DCEOptions
   <*> dumpCoreFnOpt
   <*> verboseOutputOpt
   <*> dceForeignOpt
+  <*> pureScriptOptions
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
@@ -191,7 +248,7 @@ dceCommand opts = do
     runCodegen mods inputDir outputDir = do
       -- I need to run `codegen` from `MakeActions` directly
       -- runMake opts (make ...) accepts `PureScript.AST.Declarations.Module`
-      (makeErrors, makeWarnings) <- P.runMake (P.Options True False False False) $ runSupplyT 0 (forM mods codegen)
+      (makeErrors, makeWarnings) <- P.runMake (dcePureScriptOptions opts) $ runSupplyT 0 (forM mods codegen)
       printWarningsAndErrors False False makeWarnings makeErrors
       where
       codegen :: CoreFn.Module CoreFn.Ann -> SupplyT P.Make ()
