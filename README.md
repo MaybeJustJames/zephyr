@@ -6,7 +6,7 @@ Experimental tree shaking tool for [PureScript](https://github.com/purescript/pu
 # Usage
 ```
 # compile your project (or use `pulp build -- --dump-corefn`)
-purs compile --dump-corefn bower_components/purescript-*/src/**/*.purs src/**/*.purs
+purs compile -g corefn bower_components/purescript-*/src/**/*.purs src/**/*.purs
 
 # run `zephyr`
 zephyr -f Main.main
