@@ -1,3 +1,5 @@
+-- |
+-- Helper module for dead call elimination.
 module Language.PureScript.DCE.Utils where
 
 import           Prelude.Compat

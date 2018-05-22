@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
+-- |
+-- Simple dead call elimination in foreign modules.
 module Language.PureScript.DCE.Foreign 
   ( dceForeignModule ) where
 

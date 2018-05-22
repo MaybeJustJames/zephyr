@@ -1,3 +1,5 @@
+-- |
+-- Various constants used by zephyr.
 module Language.PureScript.DCE.Constants where
 
 import Language.PureScript.Names

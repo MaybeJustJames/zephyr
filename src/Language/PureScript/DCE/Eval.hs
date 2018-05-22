@@ -1,4 +1,5 @@
--- Dead Code Elimination for trivial Case expressions
+-- |
+-- Evaluation of PureScript's expressions used in dead call elimnation.
 module Language.PureScript.DCE.Eval
   ( dceEval ) where
 

@@ -1,3 +1,5 @@
+-- |
+-- Errors used in dead call elimination.
 module Language.PureScript.DCE.Errors
   ( DCEError(..)
   , displayDCEError
@@ -31,6 +33,8 @@ import qualified System.Console.ANSI as ANSI
 
 data Level = Error | Warning deriving (Show)
 
+-- |
+-- Error type shared by `dce` and `dceEval`.
 data DCEError (a :: Level)
   = IdentifierNotFound ModuleName Ann (Qualified Ident)
   | ArrayIdxOutOfBound ModuleName Ann Integer

@@ -1,4 +1,5 @@
--- Dead Code Elimination for CoreFn
+-- |
+-- Dead code elimination for `CoreFn`.
 module Language.PureScript.DCE.CoreFn
   ( dce
   , dceExpr
