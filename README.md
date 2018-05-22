@@ -40,6 +40,13 @@ a `src-prod` directory and include it when compiling production code with `pulp
 build -I src-prod` and to have another copy for your development environment
 under `src-dev` where `isProduction` is set to `false`.
 
+# Build & Test
+
+To build just run `stack build` (or with `nix` `stack --nix build`).  If you
+want to run test `stack --nix test` is the prefered method, `stack test` will
+also work, unless you don't have one of the dependencies: `git`, `node`, `npm`
+and `bower`.
+
 # Comments
 
 The `-f` switch is not 100% safe.  When on `zephyr` will remove exports from
