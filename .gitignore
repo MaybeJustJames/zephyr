@@ -12,3 +12,4 @@ cabal.sandbox.config
 /test/tests/bower_components
 /test/tests/output
 /test/tests/dce-output
+/test/examples
