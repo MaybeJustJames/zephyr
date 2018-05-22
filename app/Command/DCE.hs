@@ -45,6 +45,8 @@ import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath.Glob (compile, globDir1)
 import           System.IO (hPutStrLn, stderr)
 
+import           Command.DCEOptions
+
 inputDirectoryOpt :: Opts.Parser FilePath
 inputDirectoryOpt = Opts.strOption $
      Opts.short 'i'

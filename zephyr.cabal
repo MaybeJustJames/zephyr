@@ -43,7 +43,6 @@ library
     , Language.PureScript.DCE.Foreign
     , Language.PureScript.DCE.Errors
     , Language.PureScript.DCE.Eval
-    , Language.PureScript.DCE.Options
     , Language.PureScript.DCE.Utils
   build-depends:      
       aeson >=1.0 && <1.3
@@ -72,7 +71,9 @@ library
 executable zephyr
   hs-source-dirs: app
   main-is: Main.hs
-  other-modules: Command.DCE
+  other-modules:
+    Command.DCE
+    Command.DCEOptions
   default-extensions:
     DataKinds
     FlexibleContexts
