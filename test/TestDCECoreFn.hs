@@ -24,6 +24,7 @@ getNames (Rec l) = (\((_, i), _) -> i) `map` l
 hasIdent :: Ident -> [Bind Ann] -> Bool
 hasIdent i = (i `elem`) . concatMap getNames
 
+ann :: Ann
 ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
 
 spec :: Spec
