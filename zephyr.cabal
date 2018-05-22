@@ -5,16 +5,34 @@ description:         Tree shaking tool for PureScript CoreFn AST
 homepage:            https://github.com/coot/zephyr#readme
 license:             MPL-2.0
 license-file:        LICENSE
-author:              Marcin Szamotulski <coot@riseup.net>
-maintainer:          Marcin Szamotulski <coot@riseup.net>
-copyright:           (c) 2017 Marcin Szamotulski
+author:              Marcin Szamotulski <profunctor@pm.me>
+maintainer:          Marcin Szamotulski <profunctor@pm.me>
+copyright:           (c) 2017-2018 Marcin Szamotulski
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
+tested-with:         ghc
 
 library
   hs-source-dirs:      src
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor EmptyDataDecls FlexibleContexts KindSignatures LambdaCase MultiParamTypeClasses NoImplicitPrelude PatternGuards PatternSynonyms RankNTypes RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections ViewPatterns
+  default-extensions:
+    ConstraintKinds
+    DataKinds
+    DeriveFunctor
+    EmptyDataDecls
+    FlexibleContexts
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    NoImplicitPrelude
+    OverloadedStrings
+    PatternGuards
+    PatternSynonyms
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    TupleSections
+    ViewPatterns
   ghc-options:
     -Wall
     -fmax-pmcheck-iterations=4000000
@@ -81,7 +99,7 @@ executable zephyr
     , language-javascript >=0.6.0.9 && <0.7
     , mtl >=2.1.0 && <2.3.0
     , optparse-applicative >=0.13.0
-    , purescript
+    , purescript >= 0.12 && < 0.13
     , text
     , transformers >=0.3.0 && <0.6
     , transformers-base >=0.4.0 && <0.5
@@ -125,8 +143,8 @@ test-suite zephyr-test
     , utf8-string >=1 && <2
     , zephyr
   other-modules:
-        TestDCECoreFn
-      , TestDCEEval
+      TestDCECoreFn
+    , TestDCEEval
   ghc-options:
     -Wall
     -threaded
