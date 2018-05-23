@@ -13,3 +13,6 @@ cabal.sandbox.config
 /test/tests/output
 /test/tests/dce-output
 /test/examples
+/bundle/*.tar.gz
+/bundle/*.sha
+/bundle/zephyr

@@ -1,32 +1,63 @@
-# Use new container infrastructure to enable caching
 sudo: false
-
-# Do not choose a language; we provide our own build tools.
-language: generic
-
-# Caching so the next build will be fast too.
+language: c
+node_js:
+- '7'
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: false
+    - os: osx
 cache:
   directories:
+  - $HOME/.local/bin
   - $HOME/.stack
-  - .temp
+  - $HOME/coot/zephyr/.stack-work
   timeout: 1000
-
-# Ensure necessary system libraries are present
 addons:
   apt:
+    update: true
     packages:
-      - libgmp-dev
-
-before_install:
-# Download and unpack the stack executable
-- mkdir -p ~/.local/bin
-- export PATH=$HOME/.local/bin:$PATH
-- travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-
+    - libgmp-dev
 install:
-# Build dependencies
-- stack --no-terminal --install-ghc test --only-dependencies
-
+- mkdir -p $HOME/.local/bin
+- export PATH=$HOME/.local/bin:$PATH
+- | # install `stack`
+  if test ! -f "${HOME}/.local/bin/stack"
+  then
+    URL="https://www.stackage.org/stack/$TRAVIS_OS_NAME-x86_64"
+    curl --location "$URL" > stack.tar.gz
+    gunzip stack.tar.gz
+    tar -x -f stack.tar --strip-components 1
+    mv stack "$HOME/.local/bin/"
+  fi
+- | # install `timeout`
+  if [ "$TRAVIS_OS_NAME" == "osx" ]
+  then
+    if ! which gtimeout >/dev/null
+    then
+      brew update
+      brew install coreutils
+    fi
+    export TIMEOUT=gtimeout
+  else
+    export TIMEOUT=timeout
+  fi
+- npm install -g bower
+- stack --no-nix --no-terminal --jobs 2 build --pedantic
 script:
-# Build the package, its tests, and its docs and run the tests
-- stack --no-terminal test --haddock --no-haddock-deps
+- stack --no-nix --no-terminal --jobs 2 build --pedantic --test --ta="-m dceExpr -m dceEval -m TestLib"
+before_deploy:
+- bundle/build.sh $TRAVIS_OS_NAME
+deploy:
+  provider: releases
+  api_key:
+    secure: QtwaWKRaMpFepbLXokFrLq7dCjOfMVyZvZdZKIj4AChETPpI/5UYwW9VUoiVlSmM9kt+vrCR/ijsn0sLDrT+irE0LXyuZSPxrahZeQgiL5g6EKy1zJhUQQTjXbd8q0zn8fnqkJ5pfDHhwb4JvxYIo3ZyCIS8ipL2fR9YVU4aBHgodzd5jYx9J9IRinDqTmcr2jqHNs19heg5S3Gka5YtwipdfFxDLvnZqNvUUnCaK0Ohis8FEEwr4bCSVLGrvhsht+ceCDAk2wUDrYgYQsIBfixJyoXTRpv36ANEj8ImFbv4HAzXcaP/Z815uuwlAbNH2nhSqX0Ng3tGHpwwut1g2d5K7psHi1J6o++QdTk/I+ep8buKxplnyo5/3b0rh24BC2VIBXDcVpSz+fWvYG/GtBm1fGerqYCr5g5Q5YnXTfY4d0ARBHUmB+F8vK2UfafLROFrDpI2xjrYiQAfS0++FJA5m15EKMEUcI1mXBSEtqmc5mumhWXI6FN4tmc2G644o9Pq2rcrJKt2TjZ/823AOGQZER1OOXatYLB7j6M3v5ZLMI3nYWCGmP51qpdNQjtmmhRcqKqI/9fjA7S9j6pYCRd4V/6KsS8ArNa4G4HOGSM/fMPN/6REREk/a1SlDF++ZIZGoXVj+FgePzsYDptDKTDdulb3UmmnS0J33Jfwm9s=
+  file_glob: true
+  file:
+    - bundle/*.tar.gz
+    - bundle/*.sha
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: coot/zephyr

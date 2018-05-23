@@ -1,0 +1,56 @@
+# Disabled cache in hope of improving reliability of AppVeyor builds
+#cache:
+#- "c:\\sr" # stack root, short paths == fewer problems
+
+environment:
+  global:
+    STACK_ROOT: "c:\\sr"
+    STACK_VER: 1.7.1
+  nodejs_version: "8"
+clone_folder: "c:\\zephyr"
+
+install:
+  # http://help.appveyor.com/discussions/problems/6312-curl-command-not-found
+  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+  - ps: Install-Product node 8
+  - npm install -g bower
+  - set PATH=%AppData%\npm;%PATH%
+  - ps: | # install stack
+      New-Item -ItemType Directory -Force -Path C:\tools
+      $env:Path += ";C:\tools"
+      $stackRelease = "stack-$env:STACK_VER-windows-x86_64"
+      $downloadUrl = "https://github.com/commercialhaskell/stack/releases/download/v$env:STACK_VER/$stackRelease.zip"
+      (New-Object Net.WebClient).DownloadFile($downloadUrl, 'c:\tools\stack.zip')
+      pushd c:\tools
+      7z x c:\tools\stack.zip stack.exe
+      popd
+build_script:
+  - stack setup > nul
+  # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
+  # descriptor.
+  - echo "" | stack --no-nix --no-terminal --jobs 2 build --pedantic --haddock --no-haddock-deps
+  - ps: bash bundle/build.sh win64
+test_script:
+  - echo "" | stack --no-nix --no-terminal --jobs 2 test --pedantic --haddock --no-haddock-deps --ta="-m dceExpr -m dceEval"
+artifacts:
+  - path: bundle\win64.tar.gz
+    name: win64.tar.gz
+  - path: bundle\win64.sha
+    name: win64.sha
+deploy:
+  - provider: GitHub
+    auth_token:
+      secure: gHIxz3scq98LOgduo20IiKNFcLOmcKHHKH0qI4/z4TawrmbR+MV/rb1mG9GCXf7M
+    draft: false
+    artifact: win64.tar.gz
+    prerelease: false
+    on:
+      appveyor_repo_tag: true
+  - provider: GitHub
+    auth_token:
+      secure: gHIxz3scq98LOgduo20IiKNFcLOmcKHHKH0qI4/z4TawrmbR+MV/rb1mG9GCXf7M
+    draft: false
+    artifact: win64.sha
+    prerelease: false
+    on:
+      appveyor_repo_tag: true
