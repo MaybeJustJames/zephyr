@@ -1,5 +1,6 @@
 # zephyr
 [![Maintainer: coot](https://img.shields.io/badge/maintainer-coot-lightgrey.svg)](http://github.com/coot)
+[![Build Status](https://travis-ci.org/coot/zephyr.svg?branch=master)](https://travis-ci.org/coot/zephyr)
 
 Experimental tree shaking tool for [PureScript](https://github.com/purescript/purescript).
 
