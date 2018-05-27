@@ -1,7 +1,6 @@
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
 module Command.DCE
-  ( command
-  , runDCECommand
+  ( runDCECommand
   , dceOptions
   , entryPointOpt
   ) where
@@ -23,6 +22,7 @@ import qualified Data.ByteString.Lazy.Char8 as B (fromStrict, toStrict)
 import qualified Data.ByteString.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
+import           Data.Foldable (traverse_)
 import           Data.List (intercalate, null)
 import qualified Data.Map as M
 import           Data.Maybe (isNothing, listToMaybe)
@@ -152,7 +152,7 @@ pureScriptOptions =
 
 dceOptions :: Opts.Parser DCEOptions
 dceOptions = DCEOptions
-  <$> Opts.some entryPointOpt
+  <$> Opts.many entryPointOpt
   <*> inputDirectoryOpt
   <*> outputDirectoryOpt
   <*> verboseOutputOpt
@@ -213,7 +213,9 @@ formatDCEAppError opts _ (ParseErrors errs) =
         (T.intercalate "\n\t" errs')
 formatDCEAppError _ _ (NoInputs path)
   = sformat
-        (stext%": No inputs found under "%string%" directory.\n       Please run `purs compile --dump-corefn ..` or `pulp build -- --dump-corefn`")
+        (stext%": No inputs found under "%string%" directory.\n"
+              %"       Please run `purs compile --codegen corefn ..` or"
+              %"`pulp build -- --codegen corefn`")
         (colorText errorColor "Error")
         (colorString codeColor path)
 formatDCEAppError _ _ (InputNotDirectory path)
@@ -248,7 +250,7 @@ dceCommand DCEOptions {..} = do
         $ runWriterT
         $ dceEval (snd `map` rights inpts) >>= flip dce entryPoints
     relPath <- liftIO getCurrentDirectory
-    liftIO $ traverse (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
+    liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
     foreigns <- P.inferForeignModules filePathMap
     let makeActions = P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix
@@ -265,13 +267,15 @@ dceCommand DCEOptions {..} = do
         then sformat (string%":\n    "%string) f (A.formatError p err)
         else T.pack f
 
-runDCECommand :: DCEOptions -> IO ()
+runDCECommand
+  :: DCEOptions
+  -> IO ()
 runDCECommand opts = do
   res <- runExceptT $ dceCommand opts
   relPath <- getCurrentDirectory
   case res of
-    Left e  -> (hPutStrLn stderr . T.unpack . formatDCEAppError opts relPath $ e) *> exitFailure
-    Right _ -> exitSuccess
-
-command :: Opts.Parser (IO ())
-command =  runDCECommand <$> (Opts.helper <*> dceOptions)
+    Left e  ->
+         (hPutStrLn stderr . T.unpack . formatDCEAppError opts relPath $ e)
+      *> exitFailure
+    Right{} ->
+      exitSuccess

@@ -1,14 +1,32 @@
 module Main where
 
 import           Command.DCE
-import           Options.Applicative ((<**>))
+import           Data.Monoid ((<>))
+import           Data.Version (showVersion)
 import qualified Options.Applicative as Opts
+import qualified Paths_zephyr as Paths
+import           System.Environment (getArgs)
 import qualified System.IO as IO
+
 
 main :: IO ()
 main = do
   IO.hSetEncoding IO.stdout IO.utf8
   IO.hSetEncoding IO.stderr IO.utf8
-  let info = Opts.info (dceOptions <**> Opts.helper) (Opts.progDesc "tree shaking breeze for PureScript")
-  opts <- Opts.execParser info
-  runDCECommand opts
+  let pinfo = Opts.info (versionOpt <*> Opts.helper <*> dceOptions) (Opts.progDesc "tree shaking breeze for PureScript")
+  getArgs
+    >>= Opts.handleParseResult . execParserPure pinfo
+    >>= runDCECommand
+  where
+    execParserPure :: Opts.ParserInfo a -> [String] -> Opts.ParserResult a
+    execParserPure pinfo [] = Opts.Failure $
+      Opts.parserFailure Opts.defaultPrefs pinfo Opts.ShowHelpText mempty
+    execParserPure pinfo args = Opts.execParserPure Opts.defaultPrefs pinfo args
+
+versionOpt :: Opts.Parser (a -> a)
+versionOpt = Opts.abortOption (Opts.InfoMsg versionString) $
+     Opts.long "version"
+  <> Opts.help "Show the version number"
+  <> Opts.hidden
+  where
+  versionString = showVersion Paths.version

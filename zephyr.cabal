@@ -37,6 +37,7 @@ library
     TupleSections
     ViewPatterns
   ghc-options:
+    -Werror
     -Wall
     -fmax-pmcheck-iterations=4000000
   exposed-modules:
@@ -77,12 +78,14 @@ executable zephyr
   other-modules:
     Command.DCE
     Command.DCEOptions
+    Paths_zephyr
   default-extensions:
     DataKinds
     FlexibleContexts
     OverloadedStrings
     RecordWildCards
   ghc-options:
+    -Werror
     -Wall
     -O2
     -fno-warn-unused-do-bind
@@ -92,6 +95,7 @@ executable zephyr
   build-depends:
       aeson >=1.0 && <1.3
     , ansi-terminal >=0.7.1 && <0.8
+    , ansi-wl-pprint
     , base
     , base-compat >=0.6.0
     , bytestring
@@ -150,6 +154,7 @@ test-suite zephyr-test
       TestDCECoreFn
     , TestDCEEval
   ghc-options:
+    -Werror
     -Wall
     -threaded
     -rtsopts
