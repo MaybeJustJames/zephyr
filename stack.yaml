@@ -1,7 +1,6 @@
 flags: {}
 extra-package-dbs: []
 nix:
-  enable: false
   shell-file: shell.nix
 packages:
 - .

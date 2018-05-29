@@ -1,6 +1,7 @@
 name:                zephyr
-version:             0.1.1.0
-synopsis:            Zephyr tree shaking for PureScript Language
+version:             0.1.3
+synopsis:           
+  Zephyr tree shaking for PureScript Language
 description:
   Tree shaking tool and partial evaluator for PureScript
   CoreFn AST.
