@@ -41,16 +41,8 @@ deploy:
   - provider: GitHub
     auth_token:
       secure: gHIxz3scq98LOgduo20IiKNFcLOmcKHHKH0qI4/z4TawrmbR+MV/rb1mG9GCXf7M
-    draft: false
-    artifact: win64.tar.gz
-    prerelease: false
-    on:
-      appveyor_repo_tag: true
-  - provider: GitHub
-    auth_token:
-      secure: gHIxz3scq98LOgduo20IiKNFcLOmcKHHKH0qI4/z4TawrmbR+MV/rb1mG9GCXf7M
-    draft: false
-    artifact: win64.sha
-    prerelease: false
+    artifact: win64.tar.gz,win64.sha
+    draft: true
+    force_update: true
     on:
       appveyor_repo_tag: true

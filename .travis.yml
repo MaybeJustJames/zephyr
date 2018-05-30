@@ -12,7 +12,6 @@ cache:
   directories:
   - $HOME/.local/bin
   - $HOME/.stack
-  - $HOME/coot/zephyr/.stack-work
   timeout: 1000
 addons:
   apt:
@@ -58,6 +57,8 @@ deploy:
     - bundle/*.tar.gz
     - bundle/*.sha
   skip_cleanup: true
+  overwrite: true
+  draft: true
   on:
     tags: true
     repo: coot/zephyr
