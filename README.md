@@ -1,6 +1,7 @@
 # zephyr
 [![Maintainer: coot](https://img.shields.io/badge/maintainer-coot-lightgrey.svg)](http://github.com/coot)
-[![Build Status](https://travis-ci.org/coot/zephyr.svg?branch=master)](https://travis-ci.org/coot/zephyr)
+[![Travis Build Status](https://travis-ci.org/coot/zephyr.svg?branch=master)](https://travis-ci.org/coot/zephyr)
+[![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/32r7s2skrgm9ubva?svg=true)](https://ci.appveyor.com/project/coot/zephyr)
 
 Experimental tree shaking tool for [PureScript](https://github.com/purescript/purescript).
 
@@ -61,22 +62,3 @@ removed.
 It is good to run `webpack` or `rollup` to run a javascript tree shaking
 algorithm on the javascript code that is pulled in your bundle by your by your
 foreign imports.
-
-# Tests
-
-It is tested on dozeon of various projects of
-[@alexmingoia](https://github.com/alexmingoia),
-[@bodil](https://github.com/bodil), [@coot](https://github.com/coot),
-[@purescript-contrib](https://github.com/purescript-contrib) and
-[@slamdata](https://github.com/slamdata) including:
-* [purescript-pux](https://github.com/alexmingoia/purescript-pux)
-* [purescript-smolder](https://github.com/bodil/purescript-smolder)
-* [purescript-signal](https://github.com/bodil/purescript-signal)
-* [purescript-aff](https://github.com/slamdata/purescript-aff)
-* [purescript-matryoshka](https://github.com/slamdata/purescript-matryoshka)
-* [purescript-argonaout](https://github.com/purescript-contrib/purescript-argonaut)
-* [purescript-profunctor-lenses](https://github.com/purescript-contrib/purescript-profunctor-lenses)
-* [purescript-react-hocs](https://github.com/coot/purescript-react-hocs) (_karma tests_)
-* [purescript-react-redox](https://github.com/coot/purescript-react-redox) (_karma test_)
-
-Checkout unit test suite to see all of them.
