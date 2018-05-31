@@ -38,9 +38,8 @@ library
     TupleSections
     ViewPatterns
   ghc-options:
-    -Werror
-    -Wall
-    -fmax-pmcheck-iterations=4000000
+      -Wall
+      -fmax-pmcheck-iterations=4000000
   exposed-modules:
       Language.PureScript.DCE
     , Language.PureScript.DCE.Constants
@@ -86,7 +85,6 @@ executable zephyr
     OverloadedStrings
     RecordWildCards
   ghc-options:
-    -Werror
     -Wall
     -O2
     -fno-warn-unused-do-bind
@@ -155,7 +153,6 @@ test-suite zephyr-test
       TestDCECoreFn
     , TestDCEEval
   ghc-options:
-    -Werror
     -Wall
     -threaded
     -rtsopts
