@@ -23,7 +23,23 @@ import Language.PureScript.DCE.Constants as C
 import Prelude.Compat hiding (mod)
 import Safe (atMay)
 
-type Stack = [[(Ident, Expr Ann)]]
+data EvalState
+  = NotYet -- ^ an expression has not yet been evaluated
+  | Done   -- ^ an expression has been evaluated
+  deriving (Eq, Show)
+
+type Stack = [[(Ident, (Expr Ann, EvalState))]]
+
+initStack :: [(Ident, Expr Ann)] -> [(Ident, (Expr Ann, EvalState))]
+initStack = map (\(i, e) -> (i, (e, NotYet)))
+
+-- Mark an expression as evaluated to avoid loops.
+markDone :: Ident -> Stack -> Stack
+markDone _ [] = []
+markDone i (l : ls) = map fn l : markDone i ls
+  where
+  fn (i', v) | i == i'   = (i, (fst v, Done))
+             | otherwise = (i, v)
 
 -- |
 -- Evaluate expressions in a module:
@@ -61,7 +77,7 @@ dceEval mods = traverse go mods
     -- pop recent value in the stack (it was added in `onBinders`)
 
   onBind :: Bind Ann -> StateT (ModuleName, Stack) m (Bind Ann)
-  onBind b = modify (second (unBind b :)) $> b
+  onBind b = modify (second (initStack (unBind b) :)) $> b
 
   -- |
   -- Track local identifiers in case binders, push them onto the stack.
@@ -71,7 +87,7 @@ dceEval mods = traverse go mods
     -> StateT (ModuleName, Stack) m [Binder Ann]
   onBinders es bs = do
     let bes = concatMap fn (zip bs es)
-    modify (second (bes :))
+    modify (second (initStack bes :))
     return bs
     where
     fn :: (Binder Ann, Expr Ann) -> [(Ident, Expr Ann)]
@@ -150,10 +166,16 @@ dceEval mods = traverse go mods
   eval :: Expr Ann -> StateT (ModuleName, Stack) m (Maybe (Expr Ann))
   eval (Var _ (Qualified Nothing i)) = do
     (_, s) <- get
-    join <$> traverse eval (fnd i s)
+    join <$> traverse eval' (fnd i s)
     where
-      fnd :: Ident -> Stack -> Maybe (Expr Ann)
+      fnd :: Ident -> Stack -> Maybe (Expr Ann, EvalState)
       fnd j s = getFirst $ foldMap (First . lookup j) s
+
+      eval' :: (Expr Ann, EvalState) -> StateT (ModuleName, Stack) m (Maybe (Expr Ann))
+      eval' (_, Done) = return Nothing
+      eval' (e, _)    = do
+        modify (\(mn, s) -> (mn, markDone i s))
+        eval e
   eval (Var ann qi@(Qualified (Just mn) i)) = do
     (cmn, _) <- get
     case findQualifiedExpr mn i of
@@ -186,7 +208,7 @@ dceEval mods = traverse go mods
           v2 <- eval e2
           case (v1, v2) of
             (Just (Literal _ l1), Just (Literal _ l2))
-              -> return $ Just $ Literal ann  $ BooleanLiteral (eqLit l1 l2)
+              -> return $ Just $ Literal ann $ BooleanLiteral (eqLit l1 l2)
             (_, _)
               -> return Nothing
         else return Nothing
