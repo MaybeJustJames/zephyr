@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Main (main) where
 
 import           Prelude ()
@@ -26,6 +27,16 @@ import           Test.HUnit (assertEqual)
 
 import qualified TestDCECoreFn
 import qualified TestDCEEval
+
+test_prg  :: String
+#ifdef TEST_WITH_CABAL
+test_prg = "cabal"
+#else
+test_prg = "stack"
+#endif
+
+test_args :: [String]
+test_args = ["exec", "zephyr", "--"]
 
 data CoreLibTest = CoreLibTest
   { coreLibTestRepo :: Text
@@ -218,11 +229,8 @@ pursCompile coreLibTestRepo = do
   when (not outputDirExists) $ do
     (ecPurs, _, errPurs) <- lift
       $ readProcessWithExitCode
-          "stack"
-          [ "exec"
-          , "purs"
-          , "--"
-          , "compile"
+          "purs"
+          [ "compile"
           , "--codegen" , "corefn"
           , "bower_components/purescript-*/src/**/*.purs"
           , "src/**/*.purs"
@@ -240,7 +248,7 @@ runZephyr coreLibTestRepo coreLibTestEntries zephyrOptions = do
   outputDirExists <- lift $ doesDirectoryExist "dce-output"
   when outputDirExists $
     lift $ removeDirectoryRecursive "dce-output"
-  (ecZephyr, _, errZephyr) <- lift $ readProcessWithExitCode "stack" (["exec", "zephyr", "--"] ++ T.unpack `map` fromMaybe ["-f"] zephyrOptions ++ T.unpack `map` coreLibTestEntries) ""
+  (ecZephyr, _, errZephyr) <- lift $ readProcessWithExitCode test_prg (test_args ++ T.unpack `map` fromMaybe ["-f"] zephyrOptions ++ T.unpack `map` coreLibTestEntries) ""
   when (ecZephyr /= ExitSuccess) (throwError $ ZephyrError coreLibTestRepo ecZephyr errZephyr)
   
 
@@ -383,7 +391,7 @@ changeDir path = around_
 
 main :: IO ()
 main = do
-  readProcess "stack" ["exec", "purs", "--", "--version"] "" >>= putStrLn . (\v -> "\npurs version: " ++ v)
+  readProcess "purs" ["--version"] "" >>= putStrLn . (\v -> "\npurs version: " ++ v)
 
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
