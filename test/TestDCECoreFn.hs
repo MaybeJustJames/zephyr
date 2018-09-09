@@ -1,9 +1,10 @@
-module TestDCECoreFn (main) where
+module TestDCECoreFn  where
 
 import Prelude ()
 import Prelude.Compat
 
-import Data.List (concatMap)
+import Data.List (concatMap, foldl', intersect)
+import qualified Data.List as L
 
 import Language.PureScript.AST.Literals
 import Language.PureScript.AST.SourcePos
@@ -13,6 +14,9 @@ import Language.PureScript.Names
 import Language.PureScript.PSString
 
 import Test.Hspec
+import Test.QuickCheck
+
+import Generators hiding (ann)
 
 main :: IO ()
 main = hspec spec
@@ -27,9 +31,70 @@ hasIdent i = (i `elem`) . concatMap getNames
 ann :: Ann
 ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
 
+prop_exprDepth :: PSExpr Ann -> Property
+prop_exprDepth (PSExpr e) =
+  let b = NonRec ann (Ident "x") e
+      NonRec _ _ e' = dceExpr b
+      d  = exprDepth e
+      d' = exprDepth e'
+  in collect (10 * (d' * 100 `div` (10 * d)))
+    $ counterexample (show e)
+    $ d' <= d
+
+prop_lets :: PSExpr Ann -> Property
+prop_lets (PSExpr f) =
+  let b = NonRec ann (Ident "x") f
+      NonRec _ _ f' = dceExpr b
+      d  = countLets f
+      d' = countLets f'
+      idents = findBindIdents f'
+  in label ((if d > 0 then show (10 * ((d' * 100 `div` d) `div` 10)) ++ "%" else "-") ++ " of removed let bindings")
+    $ counterexample (show f)
+    $  d' <= d
+    && L.null (intersect idents unusedIdents)
+  where
+  countLets :: Expr a -> Int
+  countLets (Literal _ (ArrayLiteral es)) = foldl' (\x e -> x + countLets e) 0 es
+  countLets (Literal _ (ObjectLiteral o)) = foldl' (\x (_, e) -> x + countLets e) 0 o
+  countLets Literal{} = 0
+  countLets Constructor{} = 0
+  countLets (Accessor _ _ e) = countLets e
+  countLets (ObjectUpdate _ e o) = countLets e + foldl' (\x (_, e') -> x + countLets e') 0 o
+  countLets (Abs _ _ e) = countLets e
+  countLets (App _ e f') = countLets e + countLets f'
+  countLets Var{} = 0
+  countLets (Case _ es cs) = foldl' (\x e -> x + countLets e) 0 es + foldl countLetsInCaseAlternative 0 cs
+    where
+    countLetsInCaseAlternative x (CaseAlternative _ r) = 
+      x + either (foldl' (\y (g, e) -> y + countLets g + countLets e) 0) countLets r
+  countLets (Let _ _ e) = 1 + countLets e
+
+  findBindIdents :: Expr a -> [Ident]
+  findBindIdents (Literal _ (ArrayLiteral es)) = concatMap findBindIdents es
+  findBindIdents (Literal _ (ObjectLiteral o)) = concatMap (findBindIdents . snd) o
+  findBindIdents Literal{} = []
+  findBindIdents Constructor{} = []
+  findBindIdents (Accessor _ _ e) = findBindIdents e
+  findBindIdents (ObjectUpdate _ e o) = findBindIdents e ++ concatMap (findBindIdents . snd) o
+  findBindIdents (Abs _ _ e) = findBindIdents e
+  findBindIdents (App _ e f') = findBindIdents e ++ findBindIdents f'
+  findBindIdents Var{} = []
+  findBindIdents (Case _ es cs) = concatMap findBindIdents es ++ concatMap countLetsInCaseAlternative cs
+    where
+    countLetsInCaseAlternative (CaseAlternative _ r) = 
+      either (concatMap (\(g, e1) -> findBindIdents g ++ findBindIdents e1)) findBindIdents r
+  findBindIdents (Let _ bs e) = concatMap fn bs ++ findBindIdents e
+    where
+    fn (NonRec _ i e1) = i : findBindIdents e1
+    fn (Rec as)        = foldl' (\acc ((_, i), e1) -> i : findBindIdents e1 ++ acc) [] as
+
 spec :: Spec
-spec =
+spec = do
+  context "generators" $ do
+    specify "should generate Expr" $ property $ prop_exprDistribution
   context "dceExpr" $ do
+    specify "should reduce the depth of the tree" $ property $ withMaxSuccess 10000 prop_exprDepth
+    specify "should reduce the number of let bindings" $ property $ withMaxSuccess 10000 prop_lets
     specify "should remove unused identifier" $ do
       let e :: Expr Ann
           e = Let ann

@@ -1,5 +1,10 @@
 {-# LANGUAGE CPP #-}
-module Main (main) where
+module Main
+  ( main
+  , coreLibSpec
+  , karmaSpec
+  , libSpec
+  ) where
 
 import           Prelude ()
 import           Prelude.Compat hiding (exp)
@@ -400,5 +405,5 @@ main = do
   TestDCEEval.main
 
   hspec $ changeDir "test/tests" libSpec
-  hspec $ changeDir ".temp" coreLibSpec
-  hspec karmaSpec
+  -- hspec $ changeDir ".temp" coreLibSpec
+  -- hspec karmaSpec

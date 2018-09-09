@@ -1,4 +1,4 @@
-module TestDCEEval (main) where
+module TestDCEEval where
 
 import Prelude ()
 import Prelude.Compat
@@ -9,7 +9,7 @@ import Language.PureScript.AST.Literals
 import Language.PureScript.AST.SourcePos
 import Language.PureScript.CoreFn
 import Language.PureScript.DCE
-import Language.PureScript.DCE.Constants as C
+import qualified Language.PureScript.DCE.Constants as C
 import Language.PureScript.Names
 import Language.PureScript.PSString
 
@@ -17,6 +17,9 @@ import Language.PureScript.DCE.Utils (showExpr)
 
 import Test.Hspec
 import Test.HUnit (assertFailure)
+import Test.QuickCheck
+
+import Generators hiding (ann)
 
 main :: IO ()
 main = hspec spec
@@ -27,61 +30,80 @@ ss = SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0)
 ann :: Ann
 ann = ssAnn ss
 
+eq :: Qualified Ident
+eq = Qualified (Just C.eqMod) (Ident "eq")
+
+eqBoolean :: Qualified Ident
+eqBoolean = Qualified (Just eqModName) (Ident "eqBoolean")
+
+eqModName :: ModuleName
+eqModName = ModuleName [ProperName "Data", ProperName "Eq"]
+          
+mn :: ModuleName
+mn = ModuleName [ProperName "Test"]
+
+mp :: FilePath
+mp = "src/Test.purs"
+
+dceEvalExpr' :: Expr Ann -> [Module Ann] -> Either (DCEError 'Error) (Expr Ann)
+dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
+  Right ((Module _ _ _ _ _ _ _ [NonRec _ _ e', _]): _, _) -> Right e'
+  Right _   -> undefined
+  Left err  -> Left err
+  where
+  testMod = Module ss [] mn mp [] [] []
+    [ NonRec ann (Ident "v") e
+    , NonRec ann (Ident "f")
+        (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "x"))))
+    ]
+  eqMod = Module ss [] C.eqMod "" [] []
+    [ Ident "refEq" ]
+    [ NonRec ann (Ident "eq")  
+        (Abs ann (Ident "dictEq")
+          (Abs ann (Ident "x")
+            (Abs ann (Ident "y")
+              (Literal ann (BooleanLiteral True)))))
+    , NonRec ann (Ident "eqBoolean")
+        (App ann
+          (Var ann (Qualified (Just C.eqMod) (Ident "Eq")))
+          (Var ann (Qualified (Just C.eqMod) (Ident "refEq"))))
+    , NonRec ann (Ident "Eq")
+        (Abs ann (Ident "eq")
+          (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified Nothing (Ident "eq")))])))
+    ]
+  booleanMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Boolean"]) "" [] [] []
+    [ NonRec ann (Ident "otherwise") (Literal ann (BooleanLiteral True)) ]
+  arrayMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Array"]) ""
+    [] [] []
+    [ NonRec ann (Ident "index")
+        (Abs ann (Ident "as")
+          (Abs ann (Ident "ix")
+            (Literal ann (CharLiteral 'f'))))
+    ]
+  unsafeCoerceMod = Module ss [] C.unsafeCoerce ""
+    [] [] []
+    [ NonRec ann (Ident "unsafeCoerce")
+        (Abs ann (Ident "x")
+          (Var ann (Qualified Nothing (Ident "x"))))
+    ]
+
+dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
+dceEvalExpr e = dceEvalExpr' e []
+
+prop_eval :: PSExpr Ann -> Property
+prop_eval (PSExpr g) = 
+  let d  = exprDepth g
+      d' = either (const Nothing) (Just . exprDepth) $ dceEvalExpr g
+  in
+    collect ((\x -> if d > 0 then 10 * (x * 100 `div` (10 * d)) else 0) <$> d')
+    $ counterexample (show g)
+    $ maybe True (\x -> x <= d) d'
+
 spec :: Spec
 spec =
   context "dceEval" $ do
-    let eqModName = ModuleName [ProperName "Data", ProperName "Eq"]
-        eq = Qualified (Just eqModName) (Ident "eq")
-        eqBoolean  = Qualified (Just eqModName) (Ident "eqBoolean")
-        eqMod = Module ss [] eqModName "" [] []
-          [ Ident "refEq" ]
-          [ NonRec ann (Ident "eq")  
-              (Abs ann (Ident "dictEq")
-                (Abs ann (Ident "x")
-                  (Abs ann (Ident "y")
-                    (Literal ann (BooleanLiteral True)))))
-          , NonRec ann (Ident "eqBoolean")
-              (App ann
-                (Var ann (Qualified (Just eqModName) (Ident "Eq")))
-                (Var ann (Qualified (Just eqModName) (Ident "refEq"))))
-          , NonRec ann (Ident "Eq")
-              (Abs ann (Ident "eq")
-                (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified Nothing (Ident "eq")))])))
-          ]
-        booleanMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Boolean"]) "" [] [] []
-          [ NonRec ann (Ident "otherwise") (Literal ann (BooleanLiteral True)) ]
-        arrayMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Array"]) ""
-          [] [] []
-          [ NonRec ann (Ident "index")
-              (Abs ann (Ident "as")
-                (Abs ann (Ident "ix")
-                  (Literal ann (CharLiteral 'f'))))
-          ]
-        unsafeCoerceMod = Module ss [] C.unsafeCoerce ""
-          [] [] []
-          [ NonRec ann (Ident "unsafeCoerce")
-              (Abs ann (Ident "x")
-                (Var ann (Qualified Nothing (Ident "x"))))
-          ]
-        testMod e = Module ss [] mn mp [] [] []
-          [ NonRec ann (Ident "v") e
-          , NonRec ann (Ident "f")
-              (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "x"))))
-          ]
-          
-        mn = ModuleName [ProperName "Test"]
-        mp = "src/Test.purs"
-
-        dceEvalExpr' :: Expr Ann -> [Module Ann] -> Either (DCEError 'Error) (Expr Ann)
-        dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod e , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
-          Right (((Module _ _ _ _ _ _ _ [NonRec _ _ e', _]): _), _) -> Right e'
-          Right _   -> undefined
-          Left err  -> Left err
-
-        dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
-        dceEvalExpr e = dceEvalExpr' e []
-
-    specify "should simplify if when comparing two literal values" $ do
+    specify "should evaluate" $ property $ withMaxSuccess 100000 prop_eval
+    specify "should simplify when comparing two literal values" $ do
       let v :: Expr Ann
           v =
             App ann
@@ -281,8 +303,8 @@ spec =
     context "Var inlining" $ do
       let oModName = ModuleName [ProperName "Other"]
           oMod = Module ss [] oModName "" [] [] []
-            [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just eqModName) (Ident "eq"))) ])
-            , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just eqModName) (Ident "eq")) ])
+            [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just C.eqMod) (Ident "eq"))) ])
+            , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just C.eqMod) (Ident "eq")) ])
             , NonRec ann (Ident "s") $ Literal ann (StringLiteral (mkString "very-long-string"))
             , NonRec ann (Ident "b") $ Literal ann (BooleanLiteral True)
             , NonRec ann (Ident "c") $ Literal ann (CharLiteral 'a')

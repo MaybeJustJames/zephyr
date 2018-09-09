@@ -26,6 +26,7 @@
 , optparse-applicative
 , process
 , purescript
+, QuickCheck
 , safe
 , text
 , transformers
@@ -84,6 +85,7 @@ mkDerivation {
     transformers-compat
     utf8-string
     cabal-install
+    QuickCheck
   ];
   license = stdenv.lib.licenses.mpl20;
   homepage = "https://github.com/coot/zephyr#readme";
