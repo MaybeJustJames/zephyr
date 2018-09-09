@@ -45,7 +45,7 @@ install:
 - npm install -g bower
 - stack --no-nix --no-terminal --jobs 2 build --pedantic
 script:
-- stack --no-nix --no-terminal --jobs 2 build --pedantic --test --ta="-m dceExpr -m dceEval -m TestLib"
+- stack --no-nix --no-terminal --jobs 2 build --pedantic --test --ta="-m generators -m dceExpr -m dceEval -m TestLib"
 before_deploy:
 - bundle/build.sh $TRAVIS_OS_NAME
 deploy:

@@ -2,6 +2,8 @@
 -- Various constants used by zephyr.
 module Language.PureScript.DCE.Constants where
 
+import Prelude hiding (maybe)
+
 import Language.PureScript.Names
 
 unit :: ModuleName
@@ -12,6 +14,9 @@ pattern Unit = ModuleName [ProperName "Data", ProperName "Unit"]
 
 semigroup :: ModuleName
 semigroup = ModuleName [ProperName "Data", ProperName "Semigroup"] 
+
+maybeMod :: ModuleName
+maybeMod = ModuleName [ProperName "Data", ProperName "Maybe"] 
 
 pattern Semigroup :: ModuleName
 pattern Semigroup = ModuleName [ProperName "Data", ProperName "Semigroup"] 
@@ -39,3 +44,9 @@ pattern UnsafeCoerce = ModuleName [ProperName "Unsafe", ProperName "Coerce"]
 
 unsafeCoerce :: ModuleName
 unsafeCoerce = ModuleName [ProperName "Unsafe", ProperName "Coerce"]
+
+eqMod :: ModuleName
+eqMod = ModuleName [ProperName "Data", ProperName "Eq"]
+
+pattern Eq :: ModuleName
+pattern Eq = ModuleName [ProperName "Data", ProperName "Eq"]

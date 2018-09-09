@@ -136,7 +136,7 @@ test-suite zephyr-test
   build-depends:      
       aeson >=1.0 && <1.3
     , ansi-terminal >=0.7.1 && < 0.9
-    , base >=4.8 && <5
+    , base >= 4.8 && < 4.11
     , base-compat >=0.6.0
     , bytestring
     , containers
@@ -150,6 +150,7 @@ test-suite zephyr-test
     , optparse-applicative >=0.13.0
     , process < 1.7.0.0
     , purescript
+    , QuickCheck >= 2.12.1
     , text
     , transformers >=0.3.0 && <0.6
     , transformers-base >=0.4.0 && <0.5
@@ -159,6 +160,7 @@ test-suite zephyr-test
   other-modules:
       TestDCECoreFn
     , TestDCEEval
+    , Generators
   if flag(test-with-cabal)
     cpp-options:
       -DTEST_WITH_CABAL=1

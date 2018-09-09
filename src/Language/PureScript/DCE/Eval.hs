@@ -19,7 +19,7 @@ import Control.Applicative ((<|>))
 import Control.Arrow (second)
 import Data.Maybe (Maybe(..), fromJust, isJust, maybeToList)
 import Data.Monoid (First(..))
-import Language.PureScript.DCE.Constants as C
+import qualified Language.PureScript.DCE.Constants as C
 import Prelude.Compat hiding (mod)
 import Safe (atMay)
 
@@ -189,19 +189,19 @@ dceEval mods = traverse go mods
         (App _
           (Var _
             (Qualified
-              (Just (ModuleName [ProperName "Data", ProperName "Eq"]))
+              (Just C.Eq)
               (Ident "eq")))
           (Var _ inst))
           e1)
       e2)
     = if inst `elem`
-          [ Qualified (Just mn) (Ident "eqBoolean")
-          , Qualified (Just mn) (Ident "eqInt")
-          , Qualified (Just mn) (Ident "eqNumber")
-          , Qualified (Just mn) (Ident "eqChar")
-          , Qualified (Just mn) (Ident "eqString")
-          , Qualified (Just mn) (Ident "eqUnit")
-          , Qualified (Just mn) (Ident "eqVoid")
+          [ Qualified (Just C.eqMod) (Ident "eqBoolean")
+          , Qualified (Just C.eqMod) (Ident "eqInt")
+          , Qualified (Just C.eqMod) (Ident "eqNumber")
+          , Qualified (Just C.eqMod) (Ident "eqChar")
+          , Qualified (Just C.eqMod) (Ident "eqString")
+          , Qualified (Just C.eqMod) (Ident "eqUnit")
+          , Qualified (Just C.eqMod) (Ident "eqVoid")
           ]
         then do
           v1 <- eval e1
@@ -212,8 +212,6 @@ dceEval mods = traverse go mods
             (_, _)
               -> return Nothing
         else return Nothing
-    where
-      mn = ModuleName [ProperName "Data", ProperName "Eq"]
   eval (Accessor ann a (Literal _ (ObjectLiteral as))) = do
     (mn, _) <- get
     e <- maybe (throwError (AccessorNotFound mn ann a)) return (a `lookup` as)
@@ -236,7 +234,7 @@ dceEval mods = traverse go mods
           $ App ann
               (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"]))
                 (Qualified
-                  (Just (ModuleName [ProperName "Data", ProperName "Maybe"]))
+                  (Just C.maybeMod)
                   (Ident "Just")))
         <$> e
   -- | Eval Semigroup

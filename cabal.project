@@ -1,0 +1,5 @@
+packages:       zephyr.cabal
+compiler:	ghc
+tests:		true
+documentation:  true
+haddock-hyperlink-source: true
