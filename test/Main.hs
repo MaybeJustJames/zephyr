@@ -135,19 +135,21 @@ data LibTest = LibTest
   , libTestZephyrOptions :: Maybe [Text]
   , libTestJsCmd :: Text
   , libTestShouldPass :: Bool
-  -- ^ true if should run without error, false if should error
+  -- ^ true if it should run without error, false if it should error
   }
 
 libTests :: [LibTest]
 libTests =
   [ LibTest ["Unsafe.Coerce.Test.unsafeX"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
+  , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test').add(1)(1);" True
+  , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test/foreign.js').mult(1)(1);" False
   ]
 
 data KarmaTest = KarmaTest
   { karmaTestRepo :: Text
   -- ^ git repo
   , karmaTestEntry :: Text
-  -- ^ `zephyre entry point
+  -- ^ zephyr entry point
   }
 
 karmaTests :: [KarmaTest]
@@ -374,7 +376,7 @@ coreLibSpec = do
         specify (T.unpack repo) $ assertCoreLib l
 
 libSpec :: Spec
-libSpec = do
+libSpec =
   context "TestLib" $
     forM_ libTests $ \l ->
       specify (T.unpack $ T.intercalate (T.pack " ") $ libTestEntries l) $ assertLib l

@@ -24,6 +24,7 @@ import           Language.JavaScript.Parser.AST
                   , JSArrayElement(..)
                   , JSObjectProperty(..)
                   , JSCommaTrailingList(..)
+                  , JSCommaList(..)
                   )
 import           Language.PureScript.Names
 

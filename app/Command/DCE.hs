@@ -17,9 +17,9 @@ import           Data.Aeson.Internal (JSONPath)
 import qualified Data.Aeson.Internal as A
 import           Data.Aeson.Parser (eitherDecodeWith, json)
 import           Data.Bifunctor (first)
-import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy.Char8 as B (fromStrict, toStrict)
-import qualified Data.ByteString.UTF8 as BU8
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Char8 as BSL.Char8 (unpack)
+import qualified Data.ByteString.Lazy.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights)
 import           Data.Foldable (traverse_)
@@ -30,9 +30,11 @@ import           Data.Monoid ((<>))
 import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as TE
 import           Data.Traversable (for)
 import           Data.Version (Version)
 import           Formatting (sformat, string, stext, (%))
+import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
 import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
@@ -42,6 +44,7 @@ import qualified Options.Applicative as Opts
 import qualified System.Console.ANSI as ANSI
 import           System.Directory (doesDirectoryExist, getCurrentDirectory)
 import           System.Exit (exitFailure, exitSuccess)
+import           System.FilePath ((</>))
 import           System.FilePath.Glob (compile, globDir1)
 import           System.IO (hPutStrLn, stderr)
 
@@ -162,10 +165,10 @@ dceOptions = DCEOptions
   <*> jsonErrors
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
-readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> B.readFile f)
+readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> BSL.readFile f)
   where
-  decodeCoreFn :: B.ByteString -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
-  decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON) . B.fromStrict
+  decodeCoreFn :: BSL.ByteString -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
+  decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON)
 
   addPath
     :: FilePath
@@ -188,7 +191,7 @@ printWarningsAndErrors verbose False warnings errors = do
       exitFailure
     Right _ -> return ()
 printWarningsAndErrors verbose True warnings errors = do
-  hPutStrLn stderr . BU8.toString . B.toStrict . A.encode $
+  hPutStrLn stderr . BU8.toString . A.encode $
     P.JSONResult (P.toJSONErrors verbose P.Warning warnings)
                (either (P.toJSONErrors verbose P.Error) (const []) errors)
   either (const exitFailure) (const (return ())) errors
@@ -258,6 +261,22 @@ dceCommand DCEOptions {..} = do
         liftIO
         $ P.runMake dcePureScriptOptions
         $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
+    when dceForeign $
+      forM_ mods $ \(CoreFn.Module{moduleName,moduleForeign}) -> liftIO $
+        case moduleName `M.lookup` foreigns of
+          Nothing -> return ()
+          Just fp -> do
+            jsCode <- BSL.Char8.unpack <$> BSL.readFile fp
+            case JS.parse jsCode fp of
+              Left _ -> return ()
+              Right (JS.JSAstProgram ss ann) ->
+                let ss'    = dceForeignModule moduleForeign ss
+                    jsAst' = JS.JSAstProgram ss' ann
+                    foreignFile
+                          = dceOutputDir </> T.unpack (P.runModuleName moduleName) </> "foreign.js"
+                in
+                  BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
+              Right _ -> return ()
     liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors makeWarnings makeErrors
     return ()
   where
