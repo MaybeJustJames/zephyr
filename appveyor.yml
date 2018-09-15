@@ -28,6 +28,7 @@ build_script:
   - stack setup > nul
   # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
   # descriptor.
+  - echo "" | stack --no-nix --no-terminal --jobs 2 install alex
   - echo "" | stack --no-nix --no-terminal --jobs 2 build --pedantic --haddock --no-haddock-deps
   - ps: bash bundle/build.sh win64
 test_script:
