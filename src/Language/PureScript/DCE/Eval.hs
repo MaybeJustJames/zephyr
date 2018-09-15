@@ -34,13 +34,17 @@ type Stack = [[(Ident, (Expr Ann, EvalState))]]
 initStack :: [(Ident, Expr Ann)] -> [(Ident, (Expr Ann, EvalState))]
 initStack = map (\(i, e) -> (i, (e, NotYet)))
 
--- Mark an expression as evaluated to avoid loops.
+-- Mark first found expression as evaluated to avoid infinite loops.
 markDone :: Ident -> Stack -> Stack
 markDone _ [] = []
-markDone i (l : ls) = map fn l : markDone i ls
+markDone i (l : ls) =
+  case foldr fn ([], False) l of
+    (l', True)  -> l' : ls
+    (l', False) -> l' : markDone i ls
   where
-  fn (i', v) | i == i'   = (i, (fst v, Done))
-             | otherwise = (i, v)
+  fn (i', v) (is, done)
+    | i == i' = ((i', (fst v, Done)) : is, True)
+    | otherwise = ((i', v) : is, done)
 
 -- |
 -- Evaluate expressions in a module:
@@ -216,8 +220,7 @@ dceEval mods = traverse go mods
           case (v1, v2) of
             (Just (Literal _ l1), Just (Literal _ l2))
               -> return $ Just $ Literal ann $ BooleanLiteral (eqLit l1 l2)
-            (_, _)
-              -> return Nothing
+            _ -> return Nothing
         else return Nothing
   eval (Accessor ann a (Literal _ (ObjectLiteral as))) = do
     (mn, _) <- get

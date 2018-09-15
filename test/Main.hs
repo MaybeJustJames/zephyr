@@ -146,6 +146,7 @@ libTests =
   , LibTest ["Eval.makeAppQueue"] Nothing "require('./dce-output/Eval').makeAppQueue;" True
   , LibTest ["Eval.evalUnderArrayLiteral"] Nothing "require('./dce-output/Eval').evalUnderArrayLiteral;" True
   , LibTest ["Eval.evalUnderObjectLiteral"] Nothing "require('./dce-output/Eval').evalUnderObjectLiteral;" True
+  , LibTest ["Eval.evalVars"] Nothing "require('./dce-output/Eval').evalVars;" True
   ]
 
 data KarmaTest = KarmaTest

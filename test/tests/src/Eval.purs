@@ -1,6 +1,15 @@
 module Eval where
 
+import Data.Maybe (Maybe)
+import Data.Array ((!!))
+import Data.Eq ((==))
 import Unsafe.Coerce (unsafeCoerce)
+
+evalVars :: Boolean
+evalVars =
+  let a = false
+      b = false 
+  in a == b
 
 evalUnderArrayLiteral :: Array (Maybe Boolean)
 evalUnderArrayLiteral =
