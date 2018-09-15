@@ -12,4 +12,5 @@ extra-deps:
 - hspec-2.5.6
 - hspec-core-2.5.6
 - hspec-discover-2.5.6
-resolver: lts-10.3
+- language-javascript-0.6.0.11
+resolver: lts-11.20
