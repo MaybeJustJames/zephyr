@@ -147,6 +147,7 @@ libTests =
   , LibTest ["Eval.evalUnderArrayLiteral"] Nothing "require('./dce-output/Eval').evalUnderArrayLiteral;" True
   , LibTest ["Eval.evalUnderObjectLiteral"] Nothing "require('./dce-output/Eval').evalUnderObjectLiteral;" True
   , LibTest ["Eval.evalVars"] Nothing "require('./dce-output/Eval').evalVars;" True
+  , LibTest ["Eval"] Nothing "require('./dce-output/Eval').evalVars;" True
   ]
 
 data KarmaTest = KarmaTest

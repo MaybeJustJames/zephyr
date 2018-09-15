@@ -17,6 +17,9 @@ zephyr -f Main.main
 webpack
 ```
 
+You can also specify modules as entry points, which is the same as specifying
+all exported identifiers.
+
 `zephyr` reads corefn json representation from `output` directory, removes non
 transitive dependencies of entry points and dumps common js modules (or corefn
 representation) to `dce-output` directory.

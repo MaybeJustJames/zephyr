@@ -21,7 +21,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL.Char8 (unpack)
 import qualified Data.ByteString.Lazy.UTF8 as BU8
 import           Data.Bool (bool)
-import           Data.Either (Either, lefts, rights)
+import           Data.Either (Either, lefts, rights, partitionEithers)
 import           Data.Foldable (traverse_)
 import           Data.List (intercalate, null)
 import qualified Data.Map as M
@@ -49,6 +49,7 @@ import           System.FilePath.Glob (compile, globDir1)
 import           System.IO (hPutStrLn, stderr)
 
 import           Command.DCEOptions
+import           Language.PureScript.DCE.Errors (EntryPoint (..))
 
 inputDirectoryOpt :: Opts.Parser FilePath
 inputDirectoryOpt = Opts.strOption $
@@ -69,7 +70,7 @@ outputDirectoryOpt = Opts.strOption $
 entryPointOpt :: Opts.Parser EntryPoint
 entryPointOpt = Opts.argument (Opts.auto >>= checkIfQualified) $
      Opts.metavar "entry-point"
-  <> Opts.help "Qualified identifier. All code which is not a transitive dependency of an entry point will be removed. You can pass multiple entry points."
+  <> Opts.help "Qualified identifier or a module name. All code which is not a transitive dependency of an entry point (or any exported identifier from a give module) will be removed. You can pass multiple entry points."
   where
   checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
     "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
@@ -229,6 +230,36 @@ formatDCEAppError _ _ (InputNotDirectory path)
 formatDCEAppError _ relPath (CompilationError err)
   = T.pack $ displayDCEError relPath err
 
+
+getEntryPoints
+  :: [CoreFn.Module CoreFn.Ann]
+  -> [EntryPoint]
+  -> [Either EntryPoint (P.Qualified P.Ident)]
+getEntryPoints mods = go []
+  where
+  go acc [] = acc
+  go acc ((EntryPoint i) : eps)  = 
+    if i `fnd` mods
+      then go (Right i : acc) eps
+      else go (Left (EntryPoint i)  : acc) eps
+  go acc ((EntryModule mn) : eps) = go (modExports mn mods ++ acc) eps
+
+  modExports :: P.ModuleName -> [CoreFn.Module CoreFn.Ann] -> [Either EntryPoint (P.Qualified P.Ident)]
+  modExports mn [] = [Left (EntryModule mn)]
+  modExports mn (CoreFn.Module{moduleName,moduleExports} : ms)
+    | mn == moduleName
+    = (Right . flip P.mkQualified mn) `map` moduleExports
+    | otherwise
+    = modExports mn ms
+
+  fnd :: P.Qualified P.Ident -> [CoreFn.Module CoreFn.Ann] -> Bool
+  fnd _ [] = False
+  fnd qi@(P.Qualified (Just mn) i) (CoreFn.Module{moduleName,moduleExports} : ms)
+    = if moduleName == mn && i `elem` moduleExports
+        then True
+        else fnd qi ms
+  fnd _ _ = False
+
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
 dceCommand DCEOptions {..} = do
     -- initial checks
@@ -237,8 +268,7 @@ dceCommand DCEOptions {..} = do
       throwError (InputNotDirectory dceInputDir)
 
     -- read files, parse errors
-    let entryPoints = runEntryPoint <$> dceEntryPoints
-        cfnGlb = compile "**/corefn.json"
+    let cfnGlb = compile "**/corefn.json"
     inpts <- liftIO $ globDir1 cfnGlb dceInputDir >>= readInput
     let errs = lefts inpts
     unless (null errs) $
@@ -248,10 +278,18 @@ dceCommand DCEOptions {..} = do
     when (isNothing mPursVer) $
       throwError (NoInputs dceInputDir)
 
+    let (notFound, entryPoints) = partitionEithers $ getEntryPoints (fmap snd . rights $ inpts) dceEntryPoints
+
+    when (not $ null notFound) $
+      throwError (CompilationError $ EntryPointsNotFound notFound)
+
+    when (null $ entryPoints) $
+      throwError (CompilationError $ NoEntryPoint)
+
     -- run `dceEval` and `dce` on the `CoreFn`
     (mods, warns) <- mapExceptT (fmap $ first CompilationError)
         $ runWriterT
-        $ dceEval (snd `map` rights inpts) >>= flip dce entryPoints
+        $ dceEval (snd `map` rights inpts) >>= return . flip dce entryPoints
     relPath <- liftIO getCurrentDirectory
     liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods

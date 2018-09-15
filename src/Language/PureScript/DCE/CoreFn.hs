@@ -8,15 +8,12 @@ module Language.PureScript.DCE.CoreFn
 import           Prelude.Compat
 import           Control.Arrow ((***))
 import           Control.Monad
-import           Control.Monad.Except
-import           Control.Monad.Writer
 import           Data.Graph
 import           Data.Foldable (foldl', foldr')
 import           Data.List (any, elem, filter, groupBy, sortBy)
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import           Language.PureScript.CoreFn
-import           Language.PureScript.DCE.Errors
 import           Language.PureScript.DCE.Utils (bindIdents, unBind)
 import           Language.PureScript.Names
 
@@ -29,20 +26,11 @@ data DCEVertex
 -- |
 -- Dead code elimination of a list of modules module
 dce
-  :: forall m
-   . (MonadError (DCEError 'Error) m, MonadWriter [DCEError 'Warning] m)
-  => [Module Ann]       -- ^ modules to dce
+  :: [Module Ann]       -- ^ modules to dce
   -> [Qualified Ident]  -- ^ entry points used to build the graph of
                         --   dependencies across module boundaries
-  -> m [Module Ann]     -- ^ dead code eliminated modules
-dce _ [] = throwError NoEntryPointFound
-dce modules entryPoints =
-  if null entryPointVertices then throwError NoEntryPointFound else do
-    let found = ((\(_, qi, _) -> qi) . keyForVertex) `map` entryPointVertices
-        notFound = filter (not . (`elem` found)) entryPoints
-    unless (null notFound)
-      (tell [EntryPointsNotFound notFound])
-    return (uncurry runDCE `map` reachableInModule)
+  -> [Module Ann]       -- ^ dead code eliminated modules
+dce modules entryPoints = uncurry runDCE `map` reachableInModule
   where
 
   -- |

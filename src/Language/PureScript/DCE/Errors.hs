@@ -1,7 +1,9 @@
 -- |
 -- Errors used in dead call elimination.
 module Language.PureScript.DCE.Errors
-  ( DCEError(..)
+  ( EntryPoint (..)
+  , showEntryPoint
+  , DCEError(..)
   , displayDCEError
   , displayDCEWarning
   , Level(..)
@@ -15,7 +17,7 @@ module Language.PureScript.DCE.Errors
 
 import Prelude.Compat
 
-import           Data.Char (isSpace)
+import           Data.Char (isLower, isSpace)
 import           Data.List (intersperse, dropWhileEnd)
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
@@ -31,7 +33,31 @@ import           Language.PureScript.CoreFn.Ann
 import qualified Text.PrettyPrint.Boxes as Box
 import qualified System.Console.ANSI as ANSI
 
-data Level = Error | Warning deriving (Show)
+data EntryPoint
+  = EntryPoint (Qualified Ident)
+  | EntryModule ModuleName
+  deriving Show
+
+showEntryPoint :: EntryPoint -> Text
+showEntryPoint (EntryPoint qi) = showQualified showIdent qi
+showEntryPoint (EntryModule mn) = runModuleName mn
+
+instance Read EntryPoint where
+  readsPrec _ s = case unsnoc (T.splitOn "." (T.pack s)) of
+      Just (as, a)
+        | not (null as)
+        , True <- not (T.null a)
+        , True <- isLower (T.head a)
+          -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ ProperName <$> as)), "")]
+        | True <- not (T.null a)
+          -> [(EntryModule $ ModuleName $ ProperName <$> as ++ [a], "")]
+        | otherwise
+          -> []
+      Nothing -> []
+    where
+    unsnoc :: [a] -> Maybe ([a], a)
+    unsnoc [] = Nothing
+    unsnoc as = Just (init as, last as)
 
 -- |
 -- Error type shared by `dce` and `dceEval`.
@@ -39,9 +65,11 @@ data DCEError (a :: Level)
   = IdentifierNotFound ModuleName Ann (Qualified Ident)
   | ArrayIdxOutOfBound ModuleName Ann Integer
   | AccessorNotFound ModuleName Ann PSString
-  | NoEntryPointFound
-  | EntryPointsNotFound [Qualified Ident]
+  | NoEntryPoint
+  | EntryPointsNotFound [EntryPoint]
   deriving (Show)
+
+data Level = Error | Warning deriving (Show)
 
 getAnn :: DCEError a -> Maybe (ModuleName, SourceSpan)
 getAnn (IdentifierNotFound mn (ss, _, _, _) _) = Just (mn, ss)
@@ -62,11 +90,11 @@ formatDCEError (AccessorNotFound _ _ acc) =
           Box.text "Object literal lacks required label"
   Box.<+> colorBox codeColor (T.unpack $ prettyPrintString acc)
   Box.<> "."
-formatDCEError NoEntryPointFound = "No entry point found."
-formatDCEError (EntryPointsNotFound qis) =
-          Box.text ("Entry point" ++ if length qis > 1 then "s:" else "")
+formatDCEError NoEntryPoint = "No entry point given."
+formatDCEError (EntryPointsNotFound eps) =
+          Box.text ("Entry point" ++ if length eps > 1 then "s:" else "")
   Box.<+> foldr1 (Box.<>) (intersperse (Box.text ", ")
-            $ map (colorBox codeColor . T.unpack . showQualified runIdent) qis)
+            $ map (colorBox codeColor . T.unpack . showEntryPoint) eps)
   Box.<+> "not found."
 
 renderDCEError :: FilePath -> DCEError a -> Box.Box
