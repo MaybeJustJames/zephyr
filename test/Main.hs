@@ -143,6 +143,7 @@ libTests =
   [ LibTest ["Unsafe.Coerce.Test.unsafeX"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
   , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test').add(1)(1);" True
   , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test/foreign.js').mult(1)(1);" False
+  , LibTest ["Eval.makeAppQueue"] Nothing "require('./dce-output/Eval').makeAppQueue;" True
   ]
 
 data KarmaTest = KarmaTest
