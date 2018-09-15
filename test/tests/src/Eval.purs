@@ -2,6 +2,16 @@ module Eval where
 
 import Unsafe.Coerce (unsafeCoerce)
 
+evalUnderArrayLiteral :: Array (Maybe Boolean)
+evalUnderArrayLiteral =
+  let a = [true, false] !! 0
+  in [a]
+
+evalUnderObjectLiteral :: { a :: Maybe Boolean }
+evalUnderObjectLiteral =
+  let a = [true, false] !! 0
+  in { a }
+
 type Update i s
   = { interpret :: i, status :: s }
   -> { interpret :: i, status :: s }

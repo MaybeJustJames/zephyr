@@ -8,6 +8,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Functor (($>))
+import Data.Maybe (fromMaybe)
 import Language.PureScript.AST.Literals
 import Language.PureScript.CoreFn
 import Language.PureScript.DCE.Errors
@@ -139,12 +140,12 @@ dceEval mods = traverse go mods
           | otherwise -- guard expression must evaluate to a Boolean
           -> fltGuards rest
         _ -> ((g,e) :) <$> fltGuards rest
-  onExpr l@Let {} = modify (second (drop 1)) $> l
+  onExpr l@Let{} = modify (second (drop 1)) $> l
   onExpr e@Var{} = do
     v <- eval e
     case v of
       Just l@(Literal _ NumericLiteral{}) -> return l
-      Just l@(Literal _ CharLiteral{}) -> return l
+      Just l@(Literal _ CharLiteral{})    -> return l
       Just l@(Literal _ BooleanLiteral{}) -> return l
       -- preserve string, array and object literals
       Just _  -> return e
@@ -172,7 +173,7 @@ dceEval mods = traverse go mods
       fnd j s = getFirst $ foldMap (First . lookup j) s
 
       eval' :: (Expr Ann, EvalState) -> StateT (ModuleName, Stack) m (Maybe (Expr Ann))
-      eval' (_, Done) = return Nothing
+      eval' (e, Done) = return (Just e)
       eval' (e, _)    = do
         modify (\(mn, s) -> (mn, markDone i s))
         eval e
@@ -182,6 +183,12 @@ dceEval mods = traverse go mods
       Nothing -> throwError (IdentifierNotFound cmn ann qi)
       Just (Right e)  -> eval e
       Just (Left _)   -> return Nothing
+  eval (Literal ann (ArrayLiteral es)) = do
+    es' <- traverse (\e -> fromMaybe e <$> eval e) es
+    return $ Just (Literal ann (ArrayLiteral es'))
+  eval (Literal ann (ObjectLiteral as)) = do
+    as' <- traverse (\(n, e) -> maybe (n,e) ((n,)) <$> eval e) as
+    return $ Just (Literal ann (ObjectLiteral as'))
   eval e@Literal{} = return (Just e)
   eval
     (App ann
