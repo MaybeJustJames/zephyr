@@ -1,5 +1,5 @@
 name:                zephyr
-version:             0.1.4
+version:             0.2.0
 synopsis:           
   Zephyr tree shaking for PureScript Language
 description:
