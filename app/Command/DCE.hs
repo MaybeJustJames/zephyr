@@ -310,6 +310,15 @@ dceCommand DCEOptions {..} = do
         liftIO
         $ P.runMake dcePureScriptOptions
         $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
+
+    -- copy externs files
+    -- we do not have access to data to regenerate extern files (they relay on
+    -- more information than is present in `CoreFn.Module`).
+    for mods $ \m -> lift $ do
+      let mn = P.runModuleName $ CoreFn.moduleName m
+      exts <- BSL.readFile (dceInputDir </> T.unpack mn </> "externs.json")
+      BSL.writeFile (dceOutputDir </> T.unpack mn </> "externs.json") exts
+
     when dceForeign $
       forM_ mods $ \(CoreFn.Module{moduleName,moduleForeign}) -> liftIO $
         case moduleName `M.lookup` foreigns of
