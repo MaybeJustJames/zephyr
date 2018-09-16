@@ -113,6 +113,14 @@ codegenTargets = Opts.option targetParser $
       <> " The default target is 'js', but if this option is used only the targets specified will be used."
       )
 
+dceNoEvalOpt :: Opts.Parser Bool
+dceNoEvalOpt = Opts.flag True False $
+     Opts.short 'e'
+  <> Opts.long "no-eval"
+  <> Opts.showDefault
+  <> Opts.internal
+  <> Opts.help "do not evaluate"
+
 targets :: M.Map String P.CodegenTarget
 targets = M.fromList
   [ ("js", P.JS)
@@ -164,6 +172,7 @@ dceOptions = DCEOptions
   <*> pureScriptOptions
   <*> (not <$> noPrefix)
   <*> jsonErrors
+  <*> dceNoEvalOpt
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> BSL.readFile f)
@@ -289,7 +298,9 @@ dceCommand DCEOptions {..} = do
     -- run `dceEval` and `dce` on the `CoreFn`
     (mods, warns) <- mapExceptT (fmap $ first CompilationError)
         $ runWriterT
-        $ dceEval (snd `map` rights inpts) >>= return . flip dce entryPoints
+        $ if dceNoEval
+            then return $ dce (snd `map` rights inpts) entryPoints
+            else dceEval (snd `map` rights inpts) >>= return . flip dce entryPoints
     relPath <- liftIO getCurrentDirectory
     liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
