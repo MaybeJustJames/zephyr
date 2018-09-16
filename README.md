@@ -17,6 +17,12 @@ zephyr -f Main.main
 webpack
 ```
 
+or you can bundle with `pulp`:
+
+```
+pulp browserify --skip-compile -o dce-output -t app.js
+```
+
 You can also specify modules as entry points, which is the same as specifying
 all exported identifiers.
 
