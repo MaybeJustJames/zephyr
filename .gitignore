@@ -9,9 +9,9 @@ cabal.sandbox.config
 *.lksh*
 .stack-work/
 /.temp
-/test/tests/bower_components
-/test/tests/output
-/test/tests/dce-output
+/test/lib-tests/bower_components
+/test/lib-tests/output
+/test/lib-tests/dce-output
 /test/examples
 /bundle/*.tar.gz
 /bundle/*.sha

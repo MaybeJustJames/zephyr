@@ -152,8 +152,11 @@ libTests =
   , LibTest ["Eval.recordUpdate"] Nothing
        ( " var eval = require('./dce-output/Eval');\n"
       <> " var foo = eval.recordUpdate({foo: '', bar: 0})(eval.Foo.create('foo')).foo;\n"
-      <> " if (foo.value0 !== 'foo')\n"
-      <> "    throw('Error')\n" )
+      <> " if (foo != 'foo') {\n"
+      <> "    console.error(foo)\n"
+      <> "    throw('Error: ' + foo)\n"
+      <> " }\n"
+      )
       True
   ]
 
@@ -418,6 +421,6 @@ main = do
   TestDCECoreFn.main
   TestDCEEval.main
 
-  hspec $ changeDir "test/tests" libSpec
+  hspec $ changeDir "test/lib-tests" libSpec
   -- hspec $ changeDir ".temp" coreLibSpec
   -- hspec karmaSpec
