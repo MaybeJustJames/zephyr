@@ -47,3 +47,11 @@ makeAppQueue =
         in nextState
 
   in { update, commit }
+
+data Action = Foo String | Bar Int
+type State = { foo :: String, bar :: Int }
+
+recordUpdate :: State -> Action -> State
+recordUpdate state = case _ of
+  Foo str -> state { foo = str }
+  Bar n -> state { bar = n }

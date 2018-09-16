@@ -16,6 +16,7 @@ import           Data.Foldable (forM_)
 import           Data.Maybe (fromJust, fromMaybe, isJust, maybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Data.Semigroup ((<>))
 import           System.Directory
                   ( createDirectoryIfMissing
                   , doesDirectoryExist
@@ -148,6 +149,12 @@ libTests =
   , LibTest ["Eval.evalUnderObjectLiteral"] Nothing "require('./dce-output/Eval').evalUnderObjectLiteral;" True
   , LibTest ["Eval.evalVars"] Nothing "require('./dce-output/Eval').evalVars;" True
   , LibTest ["Eval"] Nothing "require('./dce-output/Eval').evalVars;" True
+  , LibTest ["Eval.recordUpdate"] Nothing
+       ( " var eval = require('./dce-output/Eval');\n"
+      <> " var foo = eval.recordUpdate({foo: '', bar: 0})(eval.Foo.create('foo')).foo;\n"
+      <> " if (foo.value0 !== 'foo')\n"
+      <> "    throw('Error')\n" )
+      True
   ]
 
 data KarmaTest = KarmaTest
