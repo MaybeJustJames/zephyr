@@ -1,5 +1,5 @@
 { compiler ? "ghc822"
-, haddock ? true
+, haddock ? false
 , test ? false
 , benchmarks ? false
 }:
