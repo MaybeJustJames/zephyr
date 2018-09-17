@@ -22,7 +22,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL.Char8 (unpack)
 import qualified Data.ByteString.Lazy.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights, partitionEithers)
-import           Data.Foldable (traverse_)
+import           Data.Foldable (for_, traverse_)
 import           Data.List (intercalate, null)
 import qualified Data.Map as M
 import           Data.Maybe (isNothing, listToMaybe)
@@ -306,7 +306,9 @@ dceCommand DCEOptions {..} = do
         $ runWriterT
         $ if dceNoEval
             then return $ dce (snd `map` rights inpts) entryPoints
-            else dceEval (snd `map` rights inpts) >>= return . flip dce entryPoints
+            else flip dce entryPoints <$> dceEval (snd `map` rights inpts)
+
+
     relPath <- liftIO getCurrentDirectory
     liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
@@ -317,16 +319,9 @@ dceCommand DCEOptions {..} = do
         $ P.runMake dcePureScriptOptions
         $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
 
-    -- copy externs files
-    -- we do not have access to data to regenerate extern files (they relay on
-    -- more information than is present in `CoreFn.Module`).
-    _ <- for mods $ \m -> lift $ do
-      let mn = P.runModuleName $ CoreFn.moduleName m
-      exts <- BSL.readFile (dceInputDir </> T.unpack mn </> "externs.json")
-      BSL.writeFile (dceOutputDir </> T.unpack mn </> "externs.json") exts
-
+    -- Do dce of foreign modules after codegen to overwrite foreign modules.
     when dceForeign $
-      forM_ mods $ \(CoreFn.Module{moduleName,moduleForeign}) -> liftIO $
+      forM_ mods $ \CoreFn.Module{moduleName,moduleForeign} -> liftIO $
         case moduleName `M.lookup` foreigns of
           Nothing -> return ()
           Just fp -> do
@@ -341,7 +336,17 @@ dceCommand DCEOptions {..} = do
                 in
                   BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
               Right _ -> return ()
-    liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors makeWarnings makeErrors
+
+    -- copy extern files
+    -- we do not have access to data to regenerate extern files (they relay on
+    -- more information than is present in `CoreFn.Module`).
+    for_ mods $ \m -> lift $ do
+      let mn = P.runModuleName $ CoreFn.moduleName m
+      exts <- BSL.readFile (dceInputDir </> T.unpack mn </> "externs.json")
+      BSL.writeFile (dceOutputDir </> T.unpack mn </> "externs.json") exts
+    liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors
+        (suppressFFIErrors makeWarnings)
+        (either (Left . suppressFFIErrors) Right makeErrors)
     return ()
   where
     formatError :: (FilePath, JSONPath, String) -> Text
@@ -349,6 +354,15 @@ dceCommand DCEOptions {..} = do
       if dceVerbose
         then sformat (string%":\n    "%string) f (A.formatError p err)
         else T.pack f
+
+    -- a hack: purescript codegen function reads FFI from disk, and checks
+    -- against it
+    suppressFFIErrors :: P.MultipleErrors -> P.MultipleErrors
+    suppressFFIErrors (P.MultipleErrors errs) = P.MultipleErrors $ filter fn errs
+      where
+      fn (P.ErrorMessage _ P.UnnecessaryFFIModule{})     = False
+      fn (P.ErrorMessage _ P.UnusedFFIImplementations{}) = False
+      fn _                                               = True
 
 runDCECommand
   :: DCEOptions
