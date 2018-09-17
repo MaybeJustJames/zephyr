@@ -3,6 +3,7 @@
 module Language.PureScript.DCE.Errors
   ( EntryPoint (..)
   , showEntryPoint
+  , isEntryParseError
   , DCEError(..)
   , displayDCEError
   , displayDCEWarning
@@ -17,8 +18,8 @@ module Language.PureScript.DCE.Errors
 
 import Prelude.Compat
 
-import           Data.Char (isLower, isSpace)
-import           Data.List (intersperse, dropWhileEnd)
+import           Data.Char (isLower, isUpper, isSpace)
+import           Data.List (dropWhileEnd, findIndex, intersperse)
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -36,14 +37,40 @@ import qualified System.Console.ANSI as ANSI
 data EntryPoint
   = EntryPoint (Qualified Ident)
   | EntryModule ModuleName
+  | EntryParseError String
   deriving Show
+
+isEntryParseError :: EntryPoint -> Bool
+isEntryParseError (EntryParseError _) = True
+isEntryParseError _                   = False
 
 showEntryPoint :: EntryPoint -> Text
 showEntryPoint (EntryPoint qi) = showQualified showIdent qi
 showEntryPoint (EntryModule mn) = runModuleName mn
+showEntryPoint (EntryParseError s) = T.pack s
 
 instance Read EntryPoint where
-  readsPrec _ s = case unsnoc (T.splitOn "." (T.pack s)) of
+  readsPrec _ s
+    | Just idx <- findIndex (== ':') s
+    = case take idx s of
+      "ident"
+        -> case unsnoc (T.splitOn "." (T.pack $ drop (idx + 1) s)) of
+          Just (as, a)
+            | not (null as)
+            , True <- not (T.null a)
+            -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ ProperName <$> as)), "")]
+          _ -> [(EntryParseError s, "")]
+      "module"
+        -> case unsnoc (T.splitOn "." (T.pack $ drop (idx + 1) s)) of
+          Just (as, a)
+            | not (null as)
+            , True <- not (T.null a)
+            , True <- isUpper (T.head a)
+            -> [(EntryModule $ ModuleName $ ProperName <$> as ++ [a], "")]
+          _ -> [(EntryParseError s, "")]
+      _ -> [(EntryParseError s, "")]
+  readsPrec _ s
+    = case unsnoc (T.splitOn "." (T.pack s)) of
       Just (as, a)
         | not (null as)
         , True <- not (T.null a)
@@ -52,12 +79,12 @@ instance Read EntryPoint where
         | True <- not (T.null a)
           -> [(EntryModule $ ModuleName $ ProperName <$> as ++ [a], "")]
         | otherwise
-          -> []
-      Nothing -> []
-    where
-    unsnoc :: [a] -> Maybe ([a], a)
-    unsnoc [] = Nothing
-    unsnoc as = Just (init as, last as)
+        -> [(EntryParseError s, "")]
+      Nothing -> [(EntryParseError s, "")]
+
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc [] = Nothing
+unsnoc as = Just (init as, last as)
 
 -- |
 -- Error type shared by `dce` and `dceEval`.
@@ -66,6 +93,7 @@ data DCEError (a :: Level)
   | ArrayIdxOutOfBound ModuleName Ann Integer
   | AccessorNotFound ModuleName Ann PSString
   | NoEntryPoint
+  | EntryPointsNotParsed [String]
   | EntryPointsNotFound [EntryPoint]
   deriving (Show)
 
@@ -91,6 +119,10 @@ formatDCEError (AccessorNotFound _ _ acc) =
   Box.<+> colorBox codeColor (T.unpack $ prettyPrintString acc)
   Box.<> "."
 formatDCEError NoEntryPoint = "No entry point given."
+formatDCEError (EntryPointsNotParsed eps) =
+          Box.text ("Parsing error for entry point" ++ if length eps > 1 then "s:" else "")
+  Box.<+> foldr1 (Box.<>) (intersperse (Box.text ", ")
+            $ map (colorBox codeColor) eps)
 formatDCEError (EntryPointsNotFound eps) =
           Box.text ("Entry point" ++ if length eps > 1 then "s:" else "")
   Box.<+> foldr1 (Box.<>) (intersperse (Box.text ", ")

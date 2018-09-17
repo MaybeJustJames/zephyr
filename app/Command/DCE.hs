@@ -70,7 +70,7 @@ outputDirectoryOpt = Opts.strOption $
 entryPointOpt :: Opts.Parser EntryPoint
 entryPointOpt = Opts.argument (Opts.auto >>= checkIfQualified) $
      Opts.metavar "entry-point"
-  <> Opts.help "Qualified identifier or a module name. All code which is not a transitive dependency of an entry point (or any exported identifier from a give module) will be removed. You can pass multiple entry points."
+  <> Opts.help "Qualified identifier or a module name (it may be prefixed with `ident:` or `module:`). All code which is not a transitive dependency of an entry point (or any exported identifier from a give module) will be removed. You can pass multiple entry points."
   where
   checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
     "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
@@ -252,6 +252,7 @@ getEntryPoints mods = go []
       then go (Right i : acc) eps
       else go (Left (EntryPoint i)  : acc) eps
   go acc ((EntryModule mn) : eps) = go (modExports mn mods ++ acc) eps
+  go acc ((err@EntryParseError{}) : eps) = go (Left err : acc) eps
 
   modExports :: P.ModuleName -> [CoreFn.Module CoreFn.Ann] -> [Either EntryPoint (P.Qualified P.Ident)]
   modExports mn [] = [Left (EntryModule mn)]
@@ -290,7 +291,12 @@ dceCommand DCEOptions {..} = do
     let (notFound, entryPoints) = partitionEithers $ getEntryPoints (fmap snd . rights $ inpts) dceEntryPoints
 
     when (not $ null notFound) $
-      throwError (CompilationError $ EntryPointsNotFound notFound)
+      case filter isEntryParseError notFound of
+        []   -> throwError (CompilationError $ EntryPointsNotFound notFound)
+        perrs ->
+          let fn (EntryParseError s) acc = s : acc
+              fn _                   acc = acc
+          in throwError (CompilationError $ EntryPointsNotParsed (foldr fn [] perrs))
 
     when (null $ entryPoints) $
       throwError (CompilationError $ NoEntryPoint)

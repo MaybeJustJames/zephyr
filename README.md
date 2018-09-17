@@ -26,6 +26,20 @@ pulp browserify --skip-compile -o dce-output -t app.js
 You can also specify modules as entry points, which is the same as specifying
 all exported identifiers.
 
+```
+# include all identifiers from Data.Eq module
+zephyr Data.Eq
+
+# as above
+zephyr module:Data.Eq
+
+# include Data.Eq.Eq identifier of Data.Eq module
+zephyr ident:Data.Eq.Eq
+
+# include Data.Eq.eq identifier (not the lower case of the identifier!)
+zpehyr Data.Eq.eq
+```
+
 `zephyr` reads corefn json representation from `output` directory, removes non
 transitive dependencies of entry points and dumps common js modules (or corefn
 representation) to `dce-output` directory.
