@@ -10,7 +10,7 @@ let
   pkgs = nixpkgs.haskell.packages;
   lib = nixpkgs.haskell.lib;
 
-  QuickCheck = pkgs.${compiler}.callPackage ./QuickCheck-2.12.1.nix { };
+  QuickCheck = pkgs.${compiler}.callPackage ./nix/QuickCheck-2.12.1.nix { };
 
   doHaddock = if haddock
     then lib.doHaddock
