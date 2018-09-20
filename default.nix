@@ -1,16 +1,11 @@
-{ compiler ? "ghc822"
+{ compiler ? "ghc843"
 , haddock ? false
 , test ? false
 , benchmarks ? false
 }:
 with builtins;
 let
-  spec = fromJSON (readFile ./nixpkgs.json);
-  src = fetchTarball {
-    url = "https://github.com/${spec.owner}/${spec.repo}/archive/${spec.rev}.tar.gz";
-    sha256 = spec.sha256;
-  };
-  nixpkgs = import src {};
+  nixpkgs = import ./nix/nixpkgs.nix { inherit compiler; };
 
   pkgs = nixpkgs.haskell.packages;
   lib = nixpkgs.haskell.lib;
