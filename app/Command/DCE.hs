@@ -313,29 +313,30 @@ dceCommand DCEOptions {..} = do
     liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
     foreigns <- P.inferForeignModules filePathMap
-    let makeActions = P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix
+    let makeActions = (P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix)
+          -- run `dceForeign` in `ffiCodeGen`
+          { P.ffiCodegen = \CoreFn.Module{moduleName,moduleForeign} -> liftIO $
+                case moduleName `M.lookup` foreigns of
+                  Nothing -> return ()
+                  Just fp -> do
+                    jsCode <- BSL.Char8.unpack <$> BSL.readFile fp
+                    case JS.parse jsCode fp of
+                      Left _ -> return ()
+                      Right (JS.JSAstProgram ss ann) ->
+                        let ss'    = dceForeignModule moduleForeign ss
+                            jsAst' = JS.JSAstProgram ss' ann
+                            foreignFile
+                                  = dceOutputDir </> T.unpack (P.runModuleName moduleName) </> "foreign.js"
+                        in
+                          BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
+                      Right _ -> return ()
+          }
     (makeErrors, makeWarnings) <-
         liftIO
         $ P.runMake dcePureScriptOptions
         $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
-
-    -- Do dce of foreign modules after codegen to overwrite foreign modules.
     when dceForeign $
-      forM_ mods $ \CoreFn.Module{moduleName,moduleForeign} -> liftIO $
-        case moduleName `M.lookup` foreigns of
-          Nothing -> return ()
-          Just fp -> do
-            jsCode <- BSL.Char8.unpack <$> BSL.readFile fp
-            case JS.parse jsCode fp of
-              Left _ -> return ()
-              Right (JS.JSAstProgram ss ann) ->
-                let ss'    = dceForeignModule moduleForeign ss
-                    jsAst' = JS.JSAstProgram ss' ann
-                    foreignFile
-                          = dceOutputDir </> T.unpack (P.runModuleName moduleName) </> "foreign.js"
-                in
-                  BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
-              Right _ -> return ()
+      traverse_ (liftIO . P.runMake dcePureScriptOptions . P.ffiCodegen makeActions) mods
 
     -- copy extern files
     -- we do not have access to data to regenerate extern files (they relay on
