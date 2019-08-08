@@ -34,6 +34,7 @@ import qualified Data.Text.Lazy.Encoding as TE
 import           Data.Traversable (for)
 import           Data.Version (Version)
 import           Formatting (sformat, string, stext, (%))
+import qualified Language.PureScript.Docs.Types as Docs
 import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
 import qualified Language.PureScript.CoreFn as CoreFn
@@ -334,7 +335,7 @@ dceCommand DCEOptions {..} = do
     (makeErrors, makeWarnings) <-
         liftIO
         $ P.runMake dcePureScriptOptions
-        $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m P.initEnvironment mempty) mods
+        $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m (Docs.Module (CoreFn.moduleName m) Nothing [] []) mempty) mods
     when dceForeign $
       traverse_ (liftIO . P.runMake dcePureScriptOptions . P.ffiCodegen makeActions) mods
 
