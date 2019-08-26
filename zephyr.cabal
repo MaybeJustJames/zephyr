@@ -135,7 +135,7 @@ test-suite zephyr-test
   build-depends:      
       aeson >=1.0 && <1.4
     , ansi-terminal >=0.7.1 && < 0.9
-    , base >= 4.8 && < 4.12
+    , base >= 4.8 && <= 4.12
     , base-compat >=0.6.0
     , bytestring
     , containers
