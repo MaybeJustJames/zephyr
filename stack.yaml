@@ -6,17 +6,11 @@ nix:
 packages:
 - .
 extra-deps:
-- QuickCheck-2.12.1
-- hspec-2.5.6
-- hspec-core-2.5.6
-- hspec-discover-2.5.6
-- aeson-1.3.1.1
 - git: https://github.com/purescript/purescript
   commit: "44397e5107dad601a52e0888a24993bec33e8fc0"
 - git: https://github.com/phadej/spdx
   commit: "4288df6e4b7840eb94d825dcd446b42fef25ef56"
-- language-javascript-0.6.0.13
 - network-3.0.1.1
-- happy-1.19.9
-- base-4.11.1.0
-resolver: lts-13.26
+- aeson-1.3.1.1@sha256:1ab29743b4c4c9be7df57200ed2c8779048adda4cead075944b7b471e93ed4c3,6006
+- language-javascript-0.6.0.13@sha256:06238479380c78a7e0fa19da6576fb1750f44c25235c942fd33af6f3969fef85,3899
+resolver: lts-13.20
