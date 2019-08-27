@@ -34,6 +34,7 @@ import qualified Data.Text.Lazy.Encoding as TE
 import           Data.Traversable (for)
 import           Data.Version (Version)
 import           Formatting (sformat, string, stext, (%))
+
 import qualified Language.PureScript.Docs.Types as Docs
 import qualified Language.JavaScript.Parser as JS
 import qualified Language.PureScript as P
