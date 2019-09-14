@@ -2,7 +2,7 @@
 
 -- |
 -- Simple dead call elimination in foreign modules.
-module Language.PureScript.DCE.Foreign 
+module Language.PureScript.DCE.Foreign
   ( dceForeignModule ) where
 
 import           Prelude.Compat
@@ -103,11 +103,23 @@ dceForeignModule is stmts = filter filterExports stmts
   -- Check if (export) identifier is used within a JSStatement.
   isUsedInStmt :: Text -> JSStatement -> Bool
   isUsedInStmt n (JSStatementBlock _ ss _ _) = any (isUsedInStmt n) ss
+  isUsedInStmt n (JSLet _ es _) = isUsedInExprs n es
   isUsedInStmt n (JSDoWhile _ stm _ _ e _ _) = isUsedInStmt n stm || isUsedInExpr n e
   isUsedInStmt n (JSFor _ _ es1 _ es2 _ es3 _ s) = isUsedInExprs n es1 || isUsedInExprs n es2 || isUsedInExprs n es3 || isUsedInStmt n s
   isUsedInStmt n (JSForIn _ _ e1 _ e2 _ s) = isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSForVar _ _ _ es1 _ es2 _ es3 _ s) = isUsedInExprs n es1 || isUsedInExprs n es2 || isUsedInExprs n es3 || isUsedInStmt n s
   isUsedInStmt n (JSForVarIn _ _ _ e1 _ e2 _ s) = isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
+  isUsedInStmt n (JSForLet _ _ _ es1 _ es2 _ es3 _ s) =
+    isUsedInExprs n es1 || isUsedInExprs n es2 || isUsedInExprs n es3 ||
+    isUsedInStmt n s
+  isUsedInStmt n (JSForLetIn _ _ _ e1 _ e2 _ s) =
+    isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
+  isUsedInStmt n (JSForLetOf _ _ _ e1 _ e2 _ s) =
+    isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
+  isUsedInStmt n (JSForOf _ _ e1 _ e2 _ s) =
+    isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
+  isUsedInStmt n (JSForVarOf _ _ _ e1 _ e2 _ s) =
+    isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSFunction _ _ _ _ _ (JSBlock _ ss _) _) = any (isUsedInStmt n) ss
   isUsedInStmt n (JSIf _ _ e _ s) = isUsedInExpr n e || isUsedInStmt n s
   isUsedInStmt n (JSIfElse _ _ e _ s1 _ s2) = isUsedInExpr n e || isUsedInStmt n s1 || isUsedInStmt n s2
@@ -140,6 +152,7 @@ dceForeignModule is stmts = filter filterExports stmts
   isUsedInExpr n (JSExpressionParen _ e _) = isUsedInExpr n e
   isUsedInExpr n (JSExpressionPostfix e _) = isUsedInExpr n e
   isUsedInExpr n (JSExpressionTernary e1 _ e2 _ e3) = isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInExpr n e3
+  isUsedInExpr n (JSArrowExpression _ _ s) = isUsedInStmt n s
   isUsedInExpr n (JSFunctionExpression _ _ _ _ _ (JSBlock _ ss _)) = any (isUsedInStmt n) ss
   isUsedInExpr n (JSMemberExpression e _ es _) = isUsedInExpr n e || isUsedInExprs n es
   isUsedInExpr n (JSMemberNew _ e _ es _) = isUsedInExpr n e || isUsedInExprs n es
@@ -150,6 +163,7 @@ dceForeignModule is stmts = filter filterExports stmts
     where
     fromCTList (JSCTLComma as _) = as
     fromCTList (JSCTLNone as) = as
+  isUsedInExpr n (JSSpreadExpression _ e) = isUsedInExpr n e
   isUsedInExpr n (JSUnaryExpression _ e) = isUsedInExpr n e
   isUsedInExpr n (JSVarInitExpression e _) = isUsedInExpr n e
   isUsedInExpr _ JSIdentifier{} = False

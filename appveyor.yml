@@ -5,7 +5,7 @@
 environment:
   global:
     STACK_ROOT: "c:\\sr"
-    STACK_VER: 1.7.1
+    STACK_VER: 2.1.3
   nodejs_version: "8"
 clone_folder: "c:\\zephyr"
 
