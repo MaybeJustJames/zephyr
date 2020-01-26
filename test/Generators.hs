@@ -82,8 +82,30 @@ genLiteral' = oneof
   , Literal ann . CharLiteral <$> arbitrary
   ]
 
+-- TODO: this generator is very frigile with size and at times can generate
+-- huge data.  We use size 4.  In particual it is very sensitive on the
+-- frequency of generating let expressions.
 genExpr :: Gen (Expr Ann)
-genExpr = unPSExpr <$> arbitrary
+genExpr = sized go
+  where
+    go :: Int -> Gen (Expr Ann)
+    go 0 = oneof
+      [ Literal ann <$> genLiteral
+      , Constructor ann <$> genProperName <*> genProperName <*> listOf genIdent
+      , Var ann <$> genQualifiedIdent
+      ]
+    go n = frequency
+      [ (3, Literal ann <$> genLiteral)
+      , (3, Constructor ann <$> genProperName <*> genProperName <*> listOf genIdent)
+      , (3, Var ann <$> genQualifiedIdent)
+      , (4, Accessor ann <$> genPSString <*> scale succ genExpr)
+      , (1, ObjectUpdate ann <$> genExpr <*> resize (max 3 (n - 1)) (listOf ((,) <$> genPSString <*> genExpr)))
+      , (2, Abs ann <$> genIdent <*> scale succ genExpr)
+      , (1, App ann <$> scale succ genExpr <*> scale succ genExpr)
+      , (4, genApp)
+      , (1, Case ann <$> resize (max 3 (n `div` 2)) (listOf genExpr) <*> resize (max 2 (n `div` 2)) (listOf (scale succ genCaseAlternative)))
+      , (2, Let ann <$> listOf genBind <*> scale (`div` 2) genExpr)
+      ]
 
 genCaseAlternative :: Gen (CaseAlternative Ann)
 genCaseAlternative = sized $ \n -> 
@@ -98,21 +120,24 @@ genCaseAlternative = sized $ \n ->
 newtype PSBinder = PSBinder { unPSBinder :: Binder Ann }
   deriving Show
 
-instance Arbitrary PSBinder where
-  arbitrary = resize 5 $ PSBinder <$> sized go
-    where
+genBinder :: Gen (Binder Ann)
+genBinder = sized go
+  where
     go :: Int -> Gen (Binder Ann)
     go 0 = oneof
       [ return $ NullBinder ann
       , VarBinder ann <$> genIdent
       ]
-    go n = frequency
+    go _ = frequency
       [ (1, return $ NullBinder ann)
-      , (2, LiteralBinder ann . ArrayLiteral  <$> listOf (go (n - 1)))
-      , (2, LiteralBinder ann . ObjectLiteral <$> listOf ((,) <$> genPSString <*> (go (n - 1))))
-      , (3, ConstructorBinder ann <$> genQualified genProperName <*> genQualified genProperName <*> listOf (go (n - 1)))
-      , (3, NamedBinder ann <$> genIdent <*> (go (n - 1)))
+      , (2, LiteralBinder ann . ArrayLiteral  <$> listOf (scale succ genBinder))
+      , (2, LiteralBinder ann . ObjectLiteral <$> listOf ((,) <$> genPSString <*> (scale succ genBinder)))
+      , (3, ConstructorBinder ann <$> genQualified genProperName <*> genQualified genProperName <*> listOf (scale succ genBinder))
+      , (3, NamedBinder ann <$> genIdent <*> scale succ genBinder)
       ]
+
+instance Arbitrary PSBinder where
+  arbitrary =  PSBinder <$> resize 5 genBinder
 
   shrink (PSBinder (LiteralBinder _ (ArrayLiteral bs))) =
     (PSBinder . LiteralBinder ann . ArrayLiteral . map unPSBinder
@@ -130,9 +155,6 @@ instance Arbitrary PSBinder where
     PSBinder b
     : (PSBinder . NamedBinder ann n . unPSBinder <$> shrink (PSBinder b))
   shrink _ = []
-
-genBinder :: Gen (Binder Ann)
-genBinder = unPSBinder <$> arbitrary
 
 prop_binderDistribution :: PSBinder -> Property
 prop_binderDistribution (PSBinder c) =
@@ -156,8 +178,8 @@ prop_binderDistribution (PSBinder c) =
 
 genBind :: Gen (Bind Ann)
 genBind = frequency
-  [ (3, NonRec ann <$> gen  <*> genExpr)
-  , (1, Rec <$> listOf ((\i e -> ((ann, i), e)) <$> gen <*> genExpr))
+  [ (3, NonRec ann <$> gen  <*> (scale (`div` 2) genExpr))
+  , (1, Rec <$> listOf ((\i e -> ((ann, i), e)) <$> gen <*> (scale (`div` 2) genExpr)))
   ]
   where
   gen = frequency [(3, genIdent), (2, genUnusedIdent)]
@@ -166,11 +188,11 @@ newtype PSExpr a = PSExpr { unPSExpr :: Expr a }
   deriving Show
 
 -- Generate simple curried functions
-genApp :: Gen (PSExpr Ann)
+genApp :: Gen (Expr Ann)
 genApp =
-  (\x y -> PSExpr $ App ann x y)
+  App ann
     <$> frequency
-        [ (1, unPSExpr <$> genApp)
+        [ (1, genApp)
         , (2, Var ann <$> genQualifiedIdent)
         ]
     <*> frequency
@@ -179,26 +201,7 @@ genApp =
         ]
 
 instance Arbitrary (PSExpr Ann) where
-  arbitrary = resize 5 $ sized go
-    where
-    go :: Int -> Gen (PSExpr Ann)
-    go 0 = oneof
-      [ PSExpr . Literal ann <$> genLiteral
-      , fmap PSExpr $ Constructor ann <$> genProperName <*> genProperName <*> listOf genIdent
-      , fmap PSExpr $ Var ann <$> genQualifiedIdent
-      ]
-    go n = frequency
-      [ (3, PSExpr . Literal ann <$> genLiteral)
-      , (3, fmap PSExpr $ Constructor ann <$> genProperName <*> genProperName <*> listOf genIdent)
-      , (3, fmap PSExpr $ Var ann <$> genQualifiedIdent)
-      , (4, fmap PSExpr $ Accessor ann <$> genPSString <*> (unPSExpr <$> go (n - 1)))
-      , (1, fmap PSExpr $ ObjectUpdate ann <$> genExpr <*> resize (max 3 (n - 1)) (listOf ((,) <$> genPSString <*> (unPSExpr <$> go (n - 1)))))
-      , (2, fmap PSExpr $ Abs ann <$> genIdent <*> (unPSExpr <$> go (n - 1)))
-      , (1, fmap PSExpr $ App ann <$> (unPSExpr <$> go (n - 1)) <*> (unPSExpr <$> go (n - 1)))
-      , (4, genApp)
-      , (1, fmap PSExpr $ Case ann <$> resize (max 3 (n `div` 2)) (listOf (unPSExpr <$> go (n - 1))) <*> resize (max 2 (n `div` 2)) (listOf (resize (n - 1) genCaseAlternative)))
-      , (4, fmap PSExpr $ Let ann <$> listOf genBind <*> (unPSExpr <$> go (n - 1)))
-      ]
+  arbitrary = PSExpr <$> resize 4 genExpr
 
   shrink (PSExpr expr) = map PSExpr $ go expr
     where
@@ -290,9 +293,10 @@ exprDepth (Let _ bs e) = 1 + exprDepth e `max` foldl' (\x b -> binderExprDepth b
 
 prop_exprDistribution :: PSExpr Ann -> Property
 prop_exprDistribution (PSExpr e) =
-    collect (exprDepth' e)
+    collect d
   $ tabulate "classify expressions" (cls e) True
   where
+  d = exprDepth' e
   cls :: Expr a -> [String]
   cls Literal{}      = ["Literal"]
   cls Constructor{}  = ["Constructor"]
