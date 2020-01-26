@@ -214,19 +214,27 @@ instance Arbitrary (PSExpr Ann) where
       e : (Accessor ann' n <$> shrinkExpr e)
     go (ObjectUpdate ann' e es) =
       e : map snd es
-      ++
-        [ ObjectUpdate ann' e' es'
-        | e'  <- shrinkExpr e
-        , es' <- shrinkList (\(n, f) -> map (n,) $ shrinkExpr f) es
-        ]
+      ++ [ ObjectUpdate ann' e' es
+         | e'  <- shrinkExpr e
+         ]
+      ++ [ ObjectUpdate ann' e es'
+         | es' <- shrinkList (\(n, f) -> map (n,) $ shrinkExpr f) es
+         ]
     go (Abs ann' n e) =
       let es = shrinkExpr e
       in e : es ++ map (Abs ann' n) es
     go (App ann' e f) =
-      e : f : [ App ann' e' f' | e' <- shrinkExpr e, f' <- shrinkExpr f ]
+      e : f : [ App ann' e' f  | e' <- shrinkExpr e ]
+          ++  [ App ann' e  f' | f' <- shrinkExpr f ]
     go Var{} = []
     go (Case ann' es cs) =
-      es
+         [ Case ann' es cs'
+         | cs' <- shrinkList shrinkCaseAlternative cs
+         ]
+      ++ [ Case ann' es' cs
+         | es' <- shrinkList shrinkExpr es
+         ]
+      ++ es
       ++ concatMap
           (\(CaseAlternative _ r) ->
             either
@@ -235,28 +243,24 @@ instance Arbitrary (PSExpr Ann) where
               r
           )
           cs
-      ++ [ Case ann' [e'] [c']
-         | e' <- if length es > 1 then es else []
-         , c' <- if length cs > 1 then cs else []
-         ]
-      ++ [ Case ann' es' cs'
-         | es' <- shrinkList shrinkExpr es
-         , cs' <- shrinkList shrinkCS cs
-         ]
-      where
-      shrinkCS :: CaseAlternative Ann -> [CaseAlternative Ann]
-      shrinkCS (CaseAlternative bs r) =
-        [ CaseAlternative bs' r'
-        | bs' <- shrinkList (\x -> [x]) bs
-        , r'  <- rs
-        ]
-        where
-        rs = case r of
-          Right e -> Right <$> shrinkExpr e
-          Left es' -> Left  <$> shrinkList (\(g, f) -> [(g', f') | g' <- shrinkExpr g, f' <- shrinkExpr f]) es'
     go (Let ann' bs e) =
-      e : [ Let ann' bs' e' | bs' <- shrinkList shrinkBind bs, e' <- shrinkExpr e ]
+      e : [ Let ann' bs  e' | e'  <- shrinkExpr e ]
+       ++ [ Let ann' bs' e  | bs' <- shrinkList shrinkBind bs ]
     go _ = []
+
+    shrinkCaseAlternative :: CaseAlternative Ann -> [CaseAlternative Ann]
+    shrinkCaseAlternative (CaseAlternative bs r) =
+         [ CaseAlternative bs r'
+         | r' <-
+             case r of
+               Right e  -> Right <$> shrinkExpr e
+               Left es' -> Left  <$> shrinkList
+                                       (\(g, f) -> [(g, f') | f' <- shrinkExpr f]
+                                                ++ [(g', f) | g' <- shrinkExpr g]) es'
+         ]
+      ++ [ CaseAlternative bs' r
+         | bs' <- shrinkList (\x -> [x]) bs
+         ]
 
 shrinkExpr :: Expr Ann -> [Expr Ann]
 shrinkExpr = map unPSExpr . shrink . PSExpr

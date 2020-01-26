@@ -336,7 +336,13 @@ dceCommand DCEOptions {..} = do
     (makeErrors, makeWarnings) <-
         liftIO
         $ P.runMake dcePureScriptOptions
-        $ runSupplyT 0 $ traverse (\m -> P.codegen makeActions m (Docs.Module (CoreFn.moduleName m) Nothing [] []) mempty) mods
+        $ runSupplyT 0
+        $ traverse
+            (\m ->
+              P.codegen makeActions m
+                        (Docs.Module (CoreFn.moduleName m) Nothing [] [])
+                        (moduleToExternsFile m))
+            mods
     when dceForeign $
       traverse_ (liftIO . P.runMake dcePureScriptOptions . P.ffiCodegen makeActions) mods
 
@@ -366,6 +372,18 @@ dceCommand DCEOptions {..} = do
       fn (P.ErrorMessage _ P.UnnecessaryFFIModule{})     = False
       fn (P.ErrorMessage _ P.UnusedFFIImplementations{}) = False
       fn _                                               = True
+
+    moduleToExternsFile :: CoreFn.Module a -> P.ExternsFile
+    moduleToExternsFile CoreFn.Module {CoreFn.moduleName} = P.ExternsFile {
+        P.efVersion      = mempty,
+        P.efModuleName   = moduleName,
+        P.efExports      = [],
+        P.efImports      = [],
+        P.efFixities     = [],
+        P.efTypeFixities = [],
+        P.efDeclarations = [],
+        P.efSourceSpan   = P.SourceSpan "none" (P.SourcePos 0 0) (P.SourcePos 0 0)
+      }
 
 runDCECommand
   :: DCEOptions
