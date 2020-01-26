@@ -270,19 +270,23 @@ shrinkBind (NonRec ann' n e) = NonRec ann' n <$> shrinkExpr e
 shrinkBind (Rec as) = Rec <$> shrinkList (\(x, e) -> map (x,) $ shrinkExpr e) as
 
 exprDepth :: Expr a -> Int
-exprDepth (Literal _ (ArrayLiteral es)) = foldr (\e x -> exprDepth e `max` x) 1 es + 1
-exprDepth (Literal _ (ObjectLiteral o)) = foldr (\(_, e) x -> exprDepth e `max` x) 1 o + 1
+exprDepth (Literal _ (ArrayLiteral es)) = foldl' (\x e -> exprDepth e `max` x) 1 es + 1
+exprDepth (Literal _ (ObjectLiteral o)) = foldl' (\x (_, e) -> exprDepth e `max` x) 1 o + 1
 exprDepth (Literal{})   = 1
 exprDepth Constructor{} = 1
 exprDepth (Accessor _ _ e) = 1 + exprDepth e
-exprDepth (ObjectUpdate _ e es) = 1 + exprDepth e + foldr (\(_, f) x -> exprDepth f `max` x) 1 es
+exprDepth (ObjectUpdate _ e es) = 1 + exprDepth e + foldl' (\x (_, f) -> exprDepth f `max` x) 1 es
 exprDepth (Abs _ _ e) = 1 + exprDepth e
 exprDepth (App _ e f) = 1 + exprDepth e `max` exprDepth f
 exprDepth Var{}       = 1
-exprDepth (Case _ es cs) = 1 + foldr (\f x -> exprDepth f `max` x) cdepth es
+exprDepth (Case _ es cs) = 1 + foldl' (\x f -> exprDepth f `max` x) cdepth es
   where
-  cdepth = foldr (\(CaseAlternative _ r) x -> either (foldr (\(g, e) y -> exprDepth g `max` exprDepth e `max` y) 1) exprDepth r `max` x) 1 cs
-exprDepth (Let _ _ e) = 1 + exprDepth e
+    cdepth = foldl' (\x (CaseAlternative _ r) -> either (foldl' (\y (g, e) -> exprDepth g `max` exprDepth e `max` y) 1) exprDepth r `max` x) 1 cs
+exprDepth (Let _ bs e) = 1 + exprDepth e `max` foldl' (\x b -> binderExprDepth b `max` x) 0 bs
+  where
+    binderExprDepth :: Bind a -> Int
+    binderExprDepth (NonRec _ _ e') = exprDepth e'
+    binderExprDepth (Rec es') = foldl' (\x (_, e') -> x `max` exprDepth e') 0 es'
 
 prop_exprDistribution :: PSExpr Ann -> Property
 prop_exprDistribution (PSExpr e) =
