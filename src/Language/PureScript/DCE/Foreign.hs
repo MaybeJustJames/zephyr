@@ -25,6 +25,10 @@ import           Language.JavaScript.Parser.AST
                   , JSObjectProperty(..)
                   , JSCommaTrailingList(..)
                   , JSCommaList(..)
+                  , JSMethodDefinition(..)
+                  , JSClassElement(..)
+                  , JSClassHeritage(..)
+                  , JSTemplatePart(..)
                   )
 import           Language.PureScript.Names
 
@@ -104,6 +108,8 @@ dceForeignModule is stmts = filter filterExports stmts
   isUsedInStmt :: Text -> JSStatement -> Bool
   isUsedInStmt n (JSStatementBlock _ ss _ _) = any (isUsedInStmt n) ss
   isUsedInStmt n (JSLet _ es _) = isUsedInExprs n es
+  isUsedInStmt n (JSClass _ _ h _ cs _ _) =
+    isUsedInClassHeritage n h || any (isUsedInClassElement n) cs
   isUsedInStmt n (JSDoWhile _ stm _ _ e _ _) = isUsedInStmt n stm || isUsedInExpr n e
   isUsedInStmt n (JSFor _ _ es1 _ es2 _ es3 _ s) = isUsedInExprs n es1 || isUsedInExprs n es2 || isUsedInExprs n es3 || isUsedInStmt n s
   isUsedInStmt n (JSForIn _ _ e1 _ e2 _ s) = isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
@@ -116,11 +122,19 @@ dceForeignModule is stmts = filter filterExports stmts
     isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSForLetOf _ _ _ e1 _ e2 _ s) =
     isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
+  isUsedInStmt n (JSForConst _ _ _ es1 _ es2 _ es3 _ s) =
+    isUsedInExprs n es1 || isUsedInExprs n es2 || isUsedInExprs n es3 || isUsedInStmt n s
+  isUsedInStmt n (JSForConstIn _ _ _ e1 _ e2 _ s) =
+    isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
+  isUsedInStmt n (JSForConstOf _ _ _ e1 _ e2 _ s) =
+    isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSForOf _ _ e1 _ e2 _ s) =
     isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSForVarOf _ _ _ e1 _ e2 _ s) =
     isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSFunction _ _ _ _ _ (JSBlock _ ss _) _) = any (isUsedInStmt n) ss
+  isUsedInStmt n (JSGenerator _ _ _ _ es _ (JSBlock _ ss _) _) =
+    isUsedInExprs n es || any (isUsedInStmt n) ss
   isUsedInStmt n (JSIf _ _ e _ s) = isUsedInExpr n e || isUsedInStmt n s
   isUsedInStmt n (JSIfElse _ _ e _ s1 _ s2) = isUsedInExpr n e || isUsedInStmt n s1 || isUsedInStmt n s2
   isUsedInStmt n (JSLabelled _ _ s) = isUsedInStmt n s
@@ -148,12 +162,16 @@ dceForeignModule is stmts = filter filterExports stmts
   isUsedInExpr n (JSCallExpression e _ es _) = isUsedInExpr n e || isUsedInExprs n es
   isUsedInExpr n (JSCallExpressionDot e1 _ e2) = isUsedInExpr n e1 || isUsedInExpr n e2
   isUsedInExpr n (JSCallExpressionSquare e1 _ e2 _) = isUsedInExpr n e1 || isUsedInExpr n e2
+  isUsedInExpr n (JSClassExpression _ _ h _ cs _) =
+    isUsedInClassHeritage n h || any (isUsedInClassElement n) cs
   isUsedInExpr n (JSExpressionBinary e1 _ e2) = isUsedInExpr n e1 || isUsedInExpr n e2
   isUsedInExpr n (JSExpressionParen _ e _) = isUsedInExpr n e
   isUsedInExpr n (JSExpressionPostfix e _) = isUsedInExpr n e
   isUsedInExpr n (JSExpressionTernary e1 _ e2 _ e3) = isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInExpr n e3
   isUsedInExpr n (JSArrowExpression _ _ s) = isUsedInStmt n s
   isUsedInExpr n (JSFunctionExpression _ _ _ _ _ (JSBlock _ ss _)) = any (isUsedInStmt n) ss
+  isUsedInExpr n (JSGeneratorExpression _ _ _ _ es _ (JSBlock _ ss _)) =
+    isUsedInExprs n es || any (isUsedInStmt n) ss
   isUsedInExpr n (JSMemberExpression e _ es _) = isUsedInExpr n e || isUsedInExprs n es
   isUsedInExpr n (JSMemberNew _ e _ es _) = isUsedInExpr n e || isUsedInExprs n es
   isUsedInExpr n (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ i) _) = n == (unquote .T.pack $ i)
@@ -164,6 +182,8 @@ dceForeignModule is stmts = filter filterExports stmts
     fromCTList (JSCTLComma as _) = as
     fromCTList (JSCTLNone as) = as
   isUsedInExpr n (JSSpreadExpression _ e) = isUsedInExpr n e
+  isUsedInExpr n (JSTemplateLiteral me _ _ tps) =
+    any (isUsedInExpr n) me || any (\(JSTemplatePart e _ _) -> isUsedInExpr n e) tps
   isUsedInExpr n (JSUnaryExpression _ e) = isUsedInExpr n e
   isUsedInExpr n (JSVarInitExpression e _) = isUsedInExpr n e
   isUsedInExpr _ JSIdentifier{} = False
@@ -174,6 +194,8 @@ dceForeignModule is stmts = filter filterExports stmts
   isUsedInExpr _ JSStringLiteral{} = False
   isUsedInExpr _ JSRegEx{} = False
   isUsedInExpr n (JSCommaExpression e1 _ e2) = isUsedInExpr n e1 || isUsedInExpr n e2
+  isUsedInExpr n (JSYieldExpression _ me) = any (isUsedInExpr n) me
+  isUsedInExpr n (JSYieldFromExpression _ _ e) = isUsedInExpr n e
 
   isUsedInExprs :: Text -> JSCommaList JSExpression -> Bool
   isUsedInExprs n es = foldrJSCommaList fn es False
@@ -206,5 +228,23 @@ dceForeignModule is stmts = filter filterExports stmts
   -- |
   -- Check if (export) identifier is used withing a JSObjectProperty
   isUsedInObjectProperty :: Text -> JSObjectProperty -> Bool
-  isUsedInObjectProperty n (JSPropertyAccessor _ _ _ es _ (JSBlock _ ss _)) = any (isUsedInExpr n) es || any (isUsedInStmt n) ss
   isUsedInObjectProperty n (JSPropertyNameandValue _ _ es) = any (isUsedInExpr n) es
+  isUsedInObjectProperty _ JSPropertyIdentRef{} = False
+  isUsedInObjectProperty n (JSObjectMethod m) = isUsedInMethodDefinition n m
+
+  isUsedInMethodDefinition :: Text -> JSMethodDefinition -> Bool
+  isUsedInMethodDefinition n (JSMethodDefinition _ _ es _ (JSBlock _ ss _))
+    = isUsedInExprs n es || any (isUsedInStmt n) ss
+  isUsedInMethodDefinition n (JSGeneratorMethodDefinition _ _ _ es _ (JSBlock _ ss _))
+    = isUsedInExprs n es || any (isUsedInStmt n) ss
+  isUsedInMethodDefinition n (JSPropertyAccessor _ _ _ es _ (JSBlock _ ss _))
+    = isUsedInExprs n es || any (isUsedInStmt n) ss
+
+  isUsedInClassElement :: Text -> JSClassElement -> Bool
+  isUsedInClassElement n (JSClassInstanceMethod m) = isUsedInMethodDefinition n m
+  isUsedInClassElement n (JSClassStaticMethod _ m) = isUsedInMethodDefinition n m
+  isUsedInClassElement _ JSClassSemi{}             = False
+
+  isUsedInClassHeritage :: Text -> JSClassHeritage -> Bool
+  isUsedInClassHeritage n (JSExtends _ e) = isUsedInExpr n e
+  isUsedInClassHeritage _ JSExtendsNone   = False

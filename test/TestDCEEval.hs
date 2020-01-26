@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module TestDCEEval where
 
 import Prelude ()
@@ -96,13 +98,13 @@ prop_eval (PSExpr g) =
       d' = either (const Nothing) (Just . exprDepth) $ dceEvalExpr g
   in
     collect ((\x -> if d > 0 then 10 * (x * 100 `div` (10 * d)) else 0) <$> d')
-    $ counterexample (show g)
+    $ counterexample ("depth " ++ show d ++ " / " ++ show d' ++ "\n\t" ++ show g)
     $ maybe True (\x -> x <= d) d'
 
 spec :: Spec
 spec =
   context "dceEval" $ do
-    specify "should evaluate" $ property $ withMaxSuccess 100000 prop_eval
+    specify "should evaluate" $ property $ withMaxSuccess 100_000 prop_eval
     specify "should simplify when comparing two literal values" $ do
       let v :: Expr Ann
           v =

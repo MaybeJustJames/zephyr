@@ -386,7 +386,7 @@ assertKarma l = do
 
 coreLibSpec :: Spec
 coreLibSpec = do
-  context "test libraries" $ 
+  context "test core libraries" $ 
     forM_ coreLibs $ \l@(CoreLibTest repo  _ _ _ _) ->
         specify (T.unpack repo) $ assertCoreLib l
 
@@ -422,5 +422,9 @@ main = do
   TestDCEEval.main
 
   hspec $ changeDir "test/lib-tests" libSpec
-  -- hspec $ changeDir ".temp" coreLibSpec
+
+#ifdef TEST_CORE_LIBS
+  hspec $ changeDir ".temp" coreLibSpec
+#endif
+
   -- hspec karmaSpec
