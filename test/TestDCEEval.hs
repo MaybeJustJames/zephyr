@@ -50,7 +50,7 @@ mp = "src/Test.purs"
 dceEvalExpr' :: Expr Ann -> [Module Ann] -> Either (DCEError 'Error) (Expr Ann)
 dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
   Right ((Module _ _ _ _ _ _ _ [NonRec _ _ e', _]): _, _) -> Right e'
-  Right _   -> undefined
+  Right _   -> error "recursive bindings are not tested"
   Left err  -> Left err
   where
   testMod = Module ss [] mn mp [] [] []
@@ -95,16 +95,18 @@ dceEvalExpr e = dceEvalExpr' e []
 prop_eval :: PSExpr Ann -> Property
 prop_eval (PSExpr g) = 
   let d  = exprDepth g
-      d' = either (const Nothing) (Just . exprDepth) $ dceEvalExpr g
+      g' = dceEvalExpr g
+
+      d' = either (const Nothing) (Just . exprDepth) g'
   in
     collect ((\x -> if d > 0 then 10 * (x * 100 `div` (10 * d)) else 0) <$> d')
-    $ counterexample ("depth " ++ show d ++ " / " ++ show d' ++ "\n\t" ++ show g)
+    $ counterexample ("depth " ++ show d ++ " / " ++ show d' ++ "\n\t" ++ show g')
     $ maybe True (\x -> x <= d) d'
 
 spec :: Spec
 spec =
   context "dceEval" $ do
-    specify "should evaluate" $ property $ withMaxSuccess 100_000 prop_eval
+    -- specify "should evaluate" $ property $ withMaxSuccess 100_000 prop_eval
     specify "should simplify when comparing two literal values" $ do
       let v :: Expr Ann
           v =
