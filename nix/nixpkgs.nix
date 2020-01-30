@@ -1,10 +1,8 @@
-{ compiler ? "ghc843" }:
+{ compiler ? "ghc865" }:
 with builtins;
 let
-  rev = "61deecdc34fc609d0f805b434101f3c8ae3b807a";
+  rev = "da1483458d632912103f884af802951fdc70bf99";
   url = "https://github.com/NixOS/nixpkgs/archive/${rev}.tar.gz";
-  # nix-prefetch-url --unpack
-  sha256 = "147xyn8brvkfgz1z3jbk13w00h6camnf6z0bz0r21g9pn1vv7sb0";
   config =
     { packageOverrides = super:
       let self = super.pkgs;
@@ -14,14 +12,12 @@ let
           packages = super.haskell.packages // {
             ${compiler} = super.haskell.packages.${compiler}.override {
               overrides = self: super: {
-                spdx = lib.dontCheck (super.callPackage ./spdx.nix {});
-                # purescript fb8daf 
-                purescript = super.callPackage ./purescript.nix {};
+                language-javascript = super.callPackage ./language-javascript.nix {};
               };
             };
           };
         };
       };
     };
-  nixpkgs = import (fetchTarball { inherit url sha256; }) { inherit config; };
+  nixpkgs = import (fetchTarball { inherit url; }) { inherit config; };
 in nixpkgs

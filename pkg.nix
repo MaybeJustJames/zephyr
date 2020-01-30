@@ -44,33 +44,21 @@ mkDerivation {
     ansi-terminal
     base
     base-compat
-    bytestring
     boxes
     containers
-    directory
-    filepath
     formatting
-    Glob
     language-javascript
     mtl
-    optparse-applicative
     purescript
     safe
     text
-    transformers
-    transformers-base
-    transformers-compat
-    utf8-string
   ];
   testHaskellDepends = [
     aeson
-    ansi-terminal
     base
     base-compat
-    bytestring
     containers
     directory
-    filepath
     hspec
     hspec-core
     HUnit
@@ -81,10 +69,7 @@ mkDerivation {
     purescript
     text
     transformers
-    transformers-base
-    transformers-compat
     utf8-string
-    cabal-install
     QuickCheck
   ];
   license = stdenv.lib.licenses.mpl20;

@@ -1,4 +1,4 @@
-{ compiler ? "ghc843"
+{ compiler ? "ghc865"
 , haddock ? false
 , test ? false
 , benchmarks ? false
@@ -9,8 +9,6 @@ let
 
   pkgs = nixpkgs.haskell.packages;
   lib = nixpkgs.haskell.lib;
-
-  QuickCheck = pkgs.${compiler}.callPackage ./nix/QuickCheck-2.12.1.nix { };
 
   doHaddock = if haddock
     then lib.doHaddock
@@ -24,7 +22,7 @@ let
 
   zephyr = lib.enableCabalFlag (doHaddock(doTest(doBench(
     pkgs.${compiler}.callPackage ./pkg.nix {
-      inherit nixpkgs QuickCheck;
+      inherit nixpkgs;
       bower = nixpkgs.nodePackages.bower;
       npm   = nixpkgs.nodePackages.npm;
     })))) "test-with-cabal";
