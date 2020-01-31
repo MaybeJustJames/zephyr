@@ -1,12 +1,8 @@
+#!/bin/bash
+
 ## Bundle zephyr
 ## Usage bundle.sh os
 set -e
-
-nix="";
-if [[ ${1} == "--nix" ]]; then
-  nix="--nix";
-  shift;
-fi
 
 if [[ -z ${1} ]]; then
   echo "Usage build.sh os_name";
@@ -17,14 +13,14 @@ fi
 # Build OS_NAME
 case $1 in
   "linux")
-    OS_NAME="linux64";;
+    OS_NAME="x86_64-linux";;
   "osx")
-    OS_NAME="macos";;
+    OS_NAME="x86_64-darwin";;
+  "win64")
+    OS_NAME="x86_64-windows";;
   *)
     OS_NAME=${1};;
 esac
-
-pushd $(stack path --project-root);
 
 if [[ "$OS" = "win64" ]]
 then
@@ -32,23 +28,24 @@ then
 else
   BIN_EXT=""
 fi
-LOCAL_INSTALL_ROOT=$(stack path ${nix} --local-install-root)
+
+LOCAL_INSTALL_ROOT="dist-newstyle/build/${OS_NAME}/ghc-8.6.5/zephyr-0.2.2/x/zephyr/build/zephyr"
+ZEPHYR="${LOCAL_INSTALL_ROOT}/zephyr${BIN_EXT}"
 
 BUNDLE_DIR="bundle/zephyr"
 mkdir -p ${BUNDLE_DIR}
 
-ZEPHYR_BIN="${LOCAL_INSTALL_ROOT}/bin/zephyr${BIN_EXT}"
 # strip the executable
-if [[ ${OS_NAME} != "win64" ]]; then
-  strip ${ZEPHYR_BIN};
+if [[ ${OS_NAME} != "x86_64-windows" ]]; then
+  strip ${ZEPHYR};
 fi
-cp ${ZEPHYR_BIN} README.md LICENSE ${BUNDLE_DIR};
+cp ${ZEPHYR} README.md LICENSE ${BUNDLE_DIR};
 
 # dependencies
-stack ${nix} ls dependencies > "${BUNDLE_DIR}/dependencies"
+cabal info . > "${BUNDLE_DIR}/info"
 
 # Calculate the SHA hash
-if [[ ${OS_NAME} = "win64" ]]; then
+if [[ ${OS_NAME} = "x86_64-windows" ]]; then
   SHASUM="openssl dgst -sha1";
 else
   SHASUM="shasum";
