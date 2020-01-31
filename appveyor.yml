@@ -37,7 +37,7 @@ artifacts:
 deploy:
   - provider: GitHub
     auth_token:
-      secure: gHIxz3scq98LOgduo20IiKNFcLOmcKHHKH0qI4/z4TawrmbR+MV/rb1mG9GCXf7M
+      secure: x7NfETL6i3LCuKpv9WZf4k/RmnZTr5glvheuBbl7FvFhtqDhc4YynBufhbjYKgLC
     artifact: x86-64-windows.tar.gz,x86-64-windows.sha
     draft: true
     force_update: true
