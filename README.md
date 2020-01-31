@@ -67,10 +67,23 @@ under `src-dev` where `isProduction` is set to `false`.
 
 # Build & Test
 
-To build just run `stack build` (or with `nix` `stack --nix build`).  If you
-want to run test `stack --nix test` is the prefered method, `stack test` will
-also work, unless you don't have one of the dependencies: `git`, `node`, `npm`
-and `bower`.
+```
+cabal build exe:zephyr
+```
+
+or using nix
+
+```
+nix-build -A zephyr
+```
+
+To run tests
+
+```
+cabal run zephyr-test
+```
+
+Running test with `nix` is not supported.
 
 # Comments
 
