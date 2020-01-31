@@ -15,7 +15,7 @@ case $1 in
   "linux")
     OS_NAME="x86_64-linux";;
   "osx")
-    OS_NAME="x86_64-darwin";;
+    OS_NAME="x86_64-osx";;
   "win64")
     OS_NAME="x86_64-windows";;
   *)

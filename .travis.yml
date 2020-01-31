@@ -41,6 +41,7 @@ install:
 - cabal install purescript-0.13.6
 - npm install -g bower
 script:
+- cp cabal.project.ci cabal.project.local
 - cabal build exe:zephyr
 - cabal run -f test-with-cabal zephyr-test -- -m generators -m dceEval -m dceExpr -m TestLib
 before_deploy:
@@ -48,7 +49,7 @@ before_deploy:
 deploy:
   provider: releases
   api_key:
-    secure: QtwaWKRaMpFepbLXokFrLq7dCjOfMVyZvZdZKIj4AChETPpI/5UYwW9VUoiVlSmM9kt+vrCR/ijsn0sLDrT+irE0LXyuZSPxrahZeQgiL5g6EKy1zJhUQQTjXbd8q0zn8fnqkJ5pfDHhwb4JvxYIo3ZyCIS8ipL2fR9YVU4aBHgodzd5jYx9J9IRinDqTmcr2jqHNs19heg5S3Gka5YtwipdfFxDLvnZqNvUUnCaK0Ohis8FEEwr4bCSVLGrvhsht+ceCDAk2wUDrYgYQsIBfixJyoXTRpv36ANEj8ImFbv4HAzXcaP/Z815uuwlAbNH2nhSqX0Ng3tGHpwwut1g2d5K7psHi1J6o++QdTk/I+ep8buKxplnyo5/3b0rh24BC2VIBXDcVpSz+fWvYG/GtBm1fGerqYCr5g5Q5YnXTfY4d0ARBHUmB+F8vK2UfafLROFrDpI2xjrYiQAfS0++FJA5m15EKMEUcI1mXBSEtqmc5mumhWXI6FN4tmc2G644o9Pq2rcrJKt2TjZ/823AOGQZER1OOXatYLB7j6M3v5ZLMI3nYWCGmP51qpdNQjtmmhRcqKqI/9fjA7S9j6pYCRd4V/6KsS8ArNa4G4HOGSM/fMPN/6REREk/a1SlDF++ZIZGoXVj+FgePzsYDptDKTDdulb3UmmnS0J33Jfwm9s=
+    secure: Yo9E4uBAgSAtsAj4CZ+hraiYdSbbeavNfcfcdUxapvB/fAsCs9sD2iNbqHfGwYppJKvnrYJZo62UsMskodSuqLhFnn6VH5k38N1xC3LY0VFQNvDwj4qf6WZ7Mig3m25xVElVmO7IVRRwThq837c10n8GOxvmfxMp+VDI5E7j3qkCLmtKAB0swtTWRQsRRiW0AqKZeAhZ8HINCNNwF65Q7/Vw1Gcm17J0ABh+pTVfJ+tO595JsA6W5+PrVnlcKDM+fuwT+EQ1BxhxKJORV+0lnDKG8KZ8PFkEF9xPW+erOXwTpA1E8SdnU5bucdOP128WR1Gy707pmoR4W16Nwo0fVC2yzxMxTKqdyqPCLBk4o09UYmp7urdplHVg8XXE2ulYqpkK7MQ47TpOJBwGA1zqQoyVJG4QgrPhyj1f1AxLVLXPIgB8MeoMO0nIShLkCJwTHAgTW8ca++TlSXvk/UuW9sbRBSwZJYqbUH2a4OTx3bDDjfhuhGU1nwCUlGA4TbQ/T6ae1uN3tjhUN1Z1RJCWi5u03ptwRu0yyWTmDzcUYAQn7X3cV5sXcPQTHJE6tV5c0SAfkEMI+lEFIRoE5I0SaeEHJN7Ez+AlA4eUnOxBCRed/90MqXLI9aLZMtNvpfnLJoaki5IThxgdrvHmj38eAOgPiBhD0a2HMZKuWNpqhZI=
   file_glob: true
   file:
     - bundle/*.tar.gz

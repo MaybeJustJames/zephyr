@@ -21,11 +21,10 @@ install:
   - cabal --version
   - cabal update -v
 build_script:
-  - ps: |
-      # TODO: enable -Werror
-      cabal build exe:zephyr
-      cabal build -f test-with-cabal zephyr-test
-  - ps: bash bundle/build.sh win64
+  - cp cabal.project.ci cabal.project.local
+  - cabal build exe:zephyr
+  - cabal build -f test-with-cabal zephyr-test
+  - bash bundle/build.sh win64
 test_script:
   # TODO: not testing `-m TestLib`
   - cabal run -f test-with-cabal zephyr-test -- -m generators -m dceEval -m dceExpr
@@ -37,8 +36,8 @@ artifacts:
 deploy:
   - provider: GitHub
     auth_token:
-      secure: gHIxz3scq98LOgduo20IiKNFcLOmcKHHKH0qI4/z4TawrmbR+MV/rb1mG9GCXf7M
-    artifact: x86-64-windows.tar.gz,x86-64-windows.sha
+      secure: x7NfETL6i3LCuKpv9WZf4k/RmnZTr5glvheuBbl7FvFhtqDhc4YynBufhbjYKgLC
+    artifact: x86_64-windows.tar.gz,x86_64-windows.sha
     draft: true
     force_update: true
     on:
