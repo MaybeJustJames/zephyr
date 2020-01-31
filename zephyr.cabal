@@ -1,5 +1,5 @@
+version:             0.2.2
 name:                zephyr
-version:             0.2.1
 synopsis:           
   Zephyr tree shaking for PureScript Language
 description:
@@ -19,7 +19,7 @@ tested-with:         ghc
 
 flag test-with-cabal
   description: use `cabal exec zephyr` in tests
-  manual: True
+  manual:  True
   default: False
 
 flag test-core-libs

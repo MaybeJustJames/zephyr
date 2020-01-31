@@ -36,7 +36,7 @@
 }:
 mkDerivation {
   pname = "zephyr";
-  version = "0.2.1";
+  version = "0.2.2";
   src = nixpkgs.lib.sourceFilesBySuffices ./.
     [ ".hs" "LICENSE" "ChangeLog.md" "zephyr.cabal" ];
   libraryHaskellDepends = [
