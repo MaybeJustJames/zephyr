@@ -17,14 +17,14 @@ category:            Development
 cabal-version:       >=2.0
 tested-with:         ghc
 
-flag test-with-cabal
-  description: use `cabal exec zephyr` in tests
+flag test-with-stack
+  description: use `stack exec zephyr` in tests
   manual:  True
   default: False
 
 flag test-core-libs
   description: test core libs
-  manual: True
+  manual:  True
   default: False
 
 library
@@ -151,9 +151,9 @@ test-suite zephyr-test
       TestDCECoreFn
     , TestDCEEval
     , Generators
-  if flag(test-with-cabal)
+  if flag(test-with-stack)
     cpp-options:
-      -DTEST_WITH_CABAL=1
+      -DTEST_WITH_STACK=1
   if flag(test-core-libs)
     cpp-options:
       -DTEST_CORE_LIBS=1

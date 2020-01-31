@@ -23,11 +23,11 @@ install:
 build_script:
   - cp cabal.project.ci cabal.project.local
   - cabal build exe:zephyr
-  - cabal build -f test-with-cabal zephyr-test
+  - cabal build zephyr-test
   - bash bundle/build.sh win64
 test_script:
   # TODO: not testing `-m TestLib`
-  - cabal run -f test-with-cabal zephyr-test -- -m generators -m dceEval -m dceExpr
+  - cabal run zephyr-test -- -m generators -m dceEval -m dceExpr
 artifacts:
   - path: bundle\x86_64-windows.tar.gz
     name: x86_64-windows.tar.gz

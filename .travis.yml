@@ -43,7 +43,8 @@ install:
 script:
 - cp cabal.project.ci cabal.project.local
 - cabal build exe:zephyr
-- cabal run -f test-with-cabal zephyr-test -- -m generators -m dceEval -m dceExpr -m TestLib
+- cabal build zephyr-test
+- cabal run zephyr-test -- -m generators -m dceEval -m dceExpr -m TestLib
 before_deploy:
 - bundle/build.sh $TRAVIS_OS_NAME
 deploy:

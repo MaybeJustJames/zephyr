@@ -35,7 +35,7 @@ import qualified TestDCECoreFn
 import qualified TestDCEEval
 
 test_prg  :: String
-#ifdef TEST_WITH_CABAL
+#ifndef TEST_WITH_STACK
 test_prg = "cabal"
 #else
 test_prg = "stack"
