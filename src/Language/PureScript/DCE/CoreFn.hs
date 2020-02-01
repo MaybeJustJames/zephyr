@@ -5,7 +5,7 @@ module Language.PureScript.DCE.CoreFn
   , dceExpr
   ) where
 
-import           Prelude.Compat
+import           Prelude.Compat hiding (mod)
 import           Control.Arrow ((***))
 import           Control.Monad
 import           Data.Graph
@@ -40,7 +40,12 @@ dce modules entryPoints = uncurry runDCE `map` reachableInModule
     -- ^ list of qualified names that has to be preserved
     -> Module Ann
     -> Module Ann
-  runDCE vs Module{..} = 
+  runDCE vs mod@Module{ moduleDecls
+                      , moduleExports
+                      , moduleImports
+                      , moduleName
+                      , moduleForeign
+                      } = 
     let
         -- | filter declarations preserving the order
         moduleDecls' :: [Bind Ann]
@@ -78,15 +83,11 @@ dce modules entryPoints = uncurry runDCE `map` reachableInModule
               (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks)
               S.empty vs
 
-    in Module
-          moduleSourceSpan
-          moduleComments
-          moduleName
-          modulePath
-          moduleImports'
-          moduleExports'
-          moduleForeign'
-          moduleDecls'
+    in mod { moduleImports = moduleImports'
+           , moduleExports = moduleExports'
+           , moduleForeign = moduleForeign'
+           , moduleDecls   = moduleDecls'
+           }
 
   (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
