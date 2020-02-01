@@ -91,7 +91,6 @@ executable zephyr
     -fno-warn-unused-do-bind
     -threaded
     -rtsopts
-    -with-rtsopts=-N
   build-depends:
       aeson                >=1.0      && <1.5
     , ansi-terminal        >=0.7.1    && <0.11
