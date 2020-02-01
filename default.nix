@@ -23,8 +23,6 @@ let
   zephyr = lib.enableCabalFlag (doHaddock(doTest(doBench(
     pkgs.${compiler}.callPackage ./pkg.nix {
       inherit nixpkgs;
-      bower = nixpkgs.nodePackages.bower;
-      npm   = nixpkgs.nodePackages.npm;
     })))) "test-with-cabal";
 
 in { inherit zephyr; }

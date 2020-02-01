@@ -6,10 +6,6 @@
 with builtins;
 let
   nixpkgs = import ./nix/nixpkgs.nix {};
+  lib = nixpkgs.haskell.lib;
   default = import ./default.nix {inherit compiler haddock test;};
-in
-  {
-    zephyr = if nixpkgs.lib.inNixShell
-      then default.zephyr.env
-      else default.zephyr;
-  }
+in { zephyr = lib.shellAware default.zephyr; }

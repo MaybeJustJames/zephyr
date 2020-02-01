@@ -2,11 +2,6 @@
 , nixpkgs
 , stdenv
 
-, bower
-, cabal-install
-, git
-, npm
-
 , aeson
 , ansi-terminal
 , base
@@ -39,6 +34,9 @@ mkDerivation {
   version = "0.2.2";
   src = nixpkgs.lib.sourceFilesBySuffices ./.
     [ ".hs" "LICENSE" "ChangeLog.md" "zephyr.cabal" ];
+  # external build tools: we will need zephyr itself and also node, bower and
+  # git for runing tests
+  buildTools = [];
   libraryHaskellDepends = [
     aeson
     ansi-terminal
