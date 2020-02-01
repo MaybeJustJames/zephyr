@@ -87,7 +87,6 @@ executable zephyr
     OverloadedStrings
   ghc-options:
     -Wall
-    -O2
     -fno-warn-unused-do-bind
     -threaded
     -rtsopts
