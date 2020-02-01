@@ -1,4 +1,7 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
+--
 module Command.DCE
   ( runDCECommand
   , dceOptions
@@ -257,7 +260,7 @@ getEntryPoints mods = go []
 
   modExports :: P.ModuleName -> [CoreFn.Module CoreFn.Ann] -> [Either EntryPoint (P.Qualified P.Ident)]
   modExports mn [] = [Left (EntryModule mn)]
-  modExports mn (CoreFn.Module{moduleName,moduleExports} : ms)
+  modExports mn (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
     | mn == moduleName
     = (Right . flip P.mkQualified mn) `map` moduleExports
     | otherwise
@@ -265,14 +268,24 @@ getEntryPoints mods = go []
 
   fnd :: P.Qualified P.Ident -> [CoreFn.Module CoreFn.Ann] -> Bool
   fnd _ [] = False
-  fnd qi@(P.Qualified (Just mn) i) (CoreFn.Module{moduleName,moduleExports} : ms)
+  fnd qi@(P.Qualified (Just mn) i) (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
     = if moduleName == mn && i `elem` moduleExports
         then True
         else fnd qi ms
   fnd _ _ = False
 
+
 dceCommand :: DCEOptions -> ExceptT DCEAppError IO ()
-dceCommand DCEOptions {..} = do
+dceCommand DCEOptions { dceEntryPoints
+                      , dceInputDir
+                      , dceOutputDir
+                      , dceVerbose
+                      , dceForeign
+                      , dcePureScriptOptions
+                      , dceUsePrefix
+                      , dceJsonErrors
+                      , dceDoEval
+                      } = do
     -- initial checks
     inptDirExist <- lift $ doesDirectoryExist dceInputDir
     unless inptDirExist $
@@ -316,7 +329,7 @@ dceCommand DCEOptions {..} = do
     foreigns <- P.inferForeignModules filePathMap
     let makeActions = (P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix)
           -- run `dceForeign` in `ffiCodeGen`
-          { P.ffiCodegen = \CoreFn.Module{moduleName,moduleForeign} -> liftIO $
+          { P.ffiCodegen = \CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleForeign } -> liftIO $
                 case moduleName `M.lookup` foreigns of
                   Nothing -> return ()
                   Just fp -> do
@@ -392,6 +405,7 @@ dceCommand DCEOptions {..} = do
         P.efDeclarations = [],
         P.efSourceSpan   = P.SourceSpan "none" (P.SourcePos 0 0) (P.SourcePos 0 0)
       }
+
 
 runDCECommand
   :: DCEOptions

@@ -275,7 +275,12 @@ runZephyr coreLibTestRepo coreLibTestEntries zephyrOptions = do
   
 
 runCoreLibTest :: CoreLibTest -> ExceptT TestError IO ()
-runCoreLibTest (CoreLibTest {..}) = do
+runCoreLibTest CoreLibTest { coreLibTestRepo
+                           , coreLibTestNpmModules
+                           , coreLibTestEntries
+                           , coreLibZephyrOptions
+                           , coreLibTestJsCmd
+                           } = do
   dir <- cloneRepo coreLibTestRepo
   lift $ setCurrentDirectory dir
   npmInstall coreLibTestRepo coreLibTestNpmModules
@@ -304,7 +309,11 @@ runCoreLibTest (CoreLibTest {..}) = do
 runLibTest
   :: LibTest
   -> ExceptT TestError IO ()
-runLibTest (LibTest {..}) = do
+runLibTest LibTest { libTestEntries
+                   , libTestZephyrOptions
+                   , libTestJsCmd
+                   , libTestShouldPass
+                   } = do
   bowerInstall "LibTest"
   pursCompile "LibTest"
   runZephyr "LibTest" libTestEntries libTestZephyrOptions
@@ -323,7 +332,7 @@ runLibTest (LibTest {..}) = do
 runKarmaTest
   :: KarmaTest
   -> ExceptT TestError IO ()
-runKarmaTest KarmaTest{..} = do
+runKarmaTest KarmaTest{ karmaTestRepo, karmaTestEntry } = do
   dir <- cloneRepo karmaTestRepo
   lift $ setCurrentDirectory dir
   npmInstall karmaTestRepo []

@@ -44,7 +44,6 @@ library
     PatternGuards
     PatternSynonyms
     RankNTypes
-    RecordWildCards
     ScopedTypeVariables
     TupleSections
     ViewPatterns
@@ -86,7 +85,6 @@ executable zephyr
     FlexibleContexts
     NamedFieldPuns
     OverloadedStrings
-    RecordWildCards
   ghc-options:
     -Wall
     -O2
@@ -122,8 +120,8 @@ test-suite zephyr-test
     DataKinds
     DoAndIfThenElse
     FlexibleInstances
+    NamedFieldPuns
     OverloadedStrings
-    RecordWildCards
     TupleSections
   main-is: Main.hs
   build-depends:

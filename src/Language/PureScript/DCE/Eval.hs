@@ -66,17 +66,9 @@ dceEval
 dceEval mods = traverse go mods
   where
   go :: Module Ann -> m (Module Ann)
-  go Module{..} = do
-    decls <- (flip evalStateT (moduleName, []) . onBind') `traverse` moduleDecls
-    return $ Module
-      moduleSourceSpan
-      moduleComments
-      moduleName
-      modulePath
-      moduleImports
-      moduleExports
-      moduleForeign
-      decls
+  go mod@Module{ moduleName, moduleDecls } = do
+    moduleDecls' <- (flip evalStateT (moduleName, []) . onBind') `traverse` moduleDecls
+    return $ mod { moduleDecls = moduleDecls' }
 
   (onBind', _) = everywhereOnValuesM onBind onExpr onBinders
     (modify $ second (drop 1))
