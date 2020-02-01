@@ -184,9 +184,16 @@ dceEval mods = traverse go mods
     es' <- traverse (\e -> fromMaybe e <$> eval e) es
     return $ Just (Literal ann (ArrayLiteral es'))
   eval (Literal ann (ObjectLiteral as)) = do
-    as' <- traverse (\(n, e) -> maybe (n,e) ((n,)) <$> eval e) as
+    as' <- traverse (\(n, e) -> maybe (n, e) (n, ) <$> eval e) as
     return $ Just (Literal ann (ObjectLiteral as'))
   eval e@Literal{} = return (Just e)
+  eval (Accessor ann a (Literal _ (ObjectLiteral as))) = do
+    (mn, _) <- get
+    e <- maybe (throwError (AccessorNotFound mn ann a)) return (a `lookup` as)
+    eval e
+  --
+  -- evaluate boolean operations
+  --
   eval
     (App ann
       (App _
@@ -215,10 +222,9 @@ dceEval mods = traverse go mods
               -> return $ Just $ Literal ann $ BooleanLiteral (eqLit l1 l2)
             _ -> return Nothing
         else return Nothing
-  eval (Accessor ann a (Literal _ (ObjectLiteral as))) = do
-    (mn, _) <- get
-    e <- maybe (throwError (AccessorNotFound mn ann a)) return (a `lookup` as)
-    eval e
+  --
+  -- evaluate array indexing
+  --
   eval (App _
           (App _
             (Var ann@(ss, _, _, _)
@@ -240,7 +246,9 @@ dceEval mods = traverse go mods
                   (Just C.maybeMod)
                   (Ident "Just")))
         <$> e
-  -- | Eval Semigroup
+  --
+  -- evalualte semigroup operations
+  --
   eval
     (App ann
       (App _
@@ -263,7 +271,9 @@ dceEval mods = traverse go mods
       = return $ Just $ Var ann (Qualified (Just C.unit) (Ident "unit"))
       | otherwise
       = return Nothing
-  -- | Eval Semiring
+  --
+  -- evalulate semiring operations
+  --
   eval
     (App (ss, c, _, _)
       (App _
@@ -354,7 +364,9 @@ dceEval mods = traverse go mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
-  -- || Eval Ring
+  --
+  -- evaluate ring operations
+  --
   eval
     (App (ss, c, _, _)
       (App _
@@ -399,7 +411,9 @@ dceEval mods = traverse go mods
     = return $ Just  $ Var
         (ss, c, Nothing, Nothing)
         (Qualified (Just C.unit) (Ident "unit"))
-  -- | Eval HeytingAlgebra
+  --
+  -- evaluate Heyting algebras operations
+  --
   eval
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "ff")))
@@ -501,6 +515,9 @@ dceEval mods = traverse go mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = return Nothing
+  --
+  -- default case (no evaluation)
+  --
   eval _ = return Nothing
 
   eqLit :: Literal a -> Literal b -> Bool

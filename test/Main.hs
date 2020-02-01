@@ -151,10 +151,10 @@ libTests =
   , LibTest ["Eval"] Nothing "require('./dce-output/Eval').evalVars;" True
   , LibTest ["Eval.recordUpdate"] Nothing
        ( " var eval = require('./dce-output/Eval');\n"
-      <> " var foo = eval.recordUpdate({foo: '', bar: 0})(eval.Foo.create('foo')).foo;\n"
-      <> " if (foo != 'foo') {\n"
+      <> " var foo = eval.recordUpdate({foo: '', bar: 0})(eval.Foo.create('foo'));\n"
+      <> " if (foo.foo != 'foo') {\n"
       <> "    console.error(foo)\n"
-      <> "    throw('Error: ' + foo)\n"
+      <> "    throw('Error')\n"
       <> " }\n"
       )
       True
