@@ -14,5 +14,5 @@ data DCEOptions = DCEOptions
   , dcePureScriptOptions :: P.Options
   , dceUsePrefix         :: Bool
   , dceJsonErrors        :: Bool
-  , dceNoEval            :: Bool
+  , dceDoEval            :: Bool
   }
