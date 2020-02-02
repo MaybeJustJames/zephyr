@@ -15,12 +15,10 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.Supply
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Trans.Except
-import           Control.Monad.Writer
 import qualified Data.Aeson as A
 import           Data.Aeson.Internal (JSONPath)
 import qualified Data.Aeson.Internal as A
 import           Data.Aeson.Parser (eitherDecodeWith, json)
-import           Data.Bifunctor (first)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL.Char8 (unpack)
 import qualified Data.ByteString.Lazy.UTF8 as BU8
@@ -316,15 +314,12 @@ dceCommand DCEOptions { dceEntryPoints
       throwError (CompilationError $ NoEntryPoint)
 
     -- run `dceEval` and `dce` on the `CoreFn`
-    (mods, warns) <- mapExceptT (fmap $ first CompilationError)
-        $ runWriterT
-        $ if dceDoEval
-            then flip dce entryPoints <$> dceEval (snd `map` rights inpts)
-            else return $ dce (snd `map` rights inpts) entryPoints
+    let mods = if dceDoEval
+                  then flip dce entryPoints $ dceEval (snd `map` rights inpts)
+                  else dce (snd `map` rights inpts) entryPoints
 
-
-    relPath <- liftIO getCurrentDirectory
-    liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
+    -- relPath <- liftIO getCurrentDirectory
+    -- liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
     foreigns <- P.inferForeignModules filePathMap
     let makeActions = (P.buildMakeActions dceOutputDir filePathMap foreigns dceUsePrefix)
