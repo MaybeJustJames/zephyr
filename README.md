@@ -37,7 +37,7 @@ zephyr module:Data.Eq
 zephyr ident:Data.Eq.Eq
 
 # include Data.Eq.eq identifier (not the lower case of the identifier!)
-zpehyr Data.Eq.eq
+zephyr Data.Eq.eq
 ```
 
 `zephyr` reads corefn json representation from `output` directory, removes non
