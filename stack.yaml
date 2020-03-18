@@ -19,3 +19,8 @@ flags:
   these:
     assoc: false
     quickcheck: false
+
+ghc-options:
+  zephyr: -package-db=/home/coot/.cabal/store/ghc-8.6.5/package.db
+          -plugin-package=ghc-tags-plugin
+          -fplugin=Plugin.GhcTags
