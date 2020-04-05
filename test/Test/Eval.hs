@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 
-module TestDCEEval where
+module Test.Eval ( main ) where
 
 import Prelude ()
 import Prelude.Compat
@@ -17,9 +17,9 @@ import Language.PureScript.DCE.Utils (showExpr)
 
 import Test.Hspec
 import Test.HUnit (assertFailure)
-import Test.QuickCheck
+-- import Test.QuickCheck
 
-import Generators hiding (ann)
+-- import Test.Generators hiding (ann)
 
 main :: IO ()
 main = hspec spec
@@ -89,6 +89,9 @@ dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, u
 dceEvalExpr :: Expr Ann -> Expr Ann
 dceEvalExpr e = dceEvalExpr' e []
 
+
+-- TODO: need to generate valid `PSExpr`s.
+{-
 prop_eval :: PSExpr Ann -> Property
 prop_eval (PSExpr g) =
   let d  = exprDepth g
@@ -98,6 +101,8 @@ prop_eval (PSExpr g) =
     collect (if d > 0 then 10 * (d' * 100 `div` (10 * d)) else 0)
     $ counterexample ("depth " ++ show d ++ " / " ++ show d' ++ "\n\t" ++ show g')
     $ (d' <= d)
+-}
+
 
 spec :: Spec
 spec =

@@ -31,8 +31,8 @@ import           System.Process (readProcess, readProcessWithExitCode)
 import           Test.Hspec
 import           Test.HUnit (assertEqual)
 
-import qualified TestDCECoreFn
-import qualified TestDCEEval
+import qualified Test.CoreFn
+import qualified Test.Eval
 
 test_prg  :: String
 test_args :: [String]
@@ -428,8 +428,8 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 
-  TestDCECoreFn.main
-  TestDCEEval.main
+  Test.CoreFn.main
+  Test.Eval.main
 
   hspec $ changeDir "test/lib-tests" libSpec
 

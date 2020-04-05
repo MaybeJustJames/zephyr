@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns   #-}
-module Generators where
+
+module Test.Generators where
 
 import Data.List (foldl')
 import Data.String (IsString (..))
