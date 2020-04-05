@@ -1,8 +1,8 @@
 -- |
 -- Dead code elimination for `CoreFn`.
 module Language.PureScript.DCE.CoreFn
-  ( dce
-  , dceExpr
+  ( runDeadCodeElimination
+  , runBindDeadCodeElimination
   ) where
 
 import           Prelude.Compat hiding (mod)
@@ -19,143 +19,147 @@ import           Language.PureScript.Names
 
 type Key = Qualified Ident
 
+
 data DCEVertex
   = BindVertex (Bind Ann)
   | ForeignVertex (Qualified Ident)
 
--- |
--- Dead code elimination of a list of modules module
-dce
-  :: [Module Ann]       -- ^ modules to dce
-  -> [Qualified Ident]  -- ^ entry points used to build the graph of
-                        --   dependencies across module boundaries
-  -> [Module Ann]       -- ^ dead code eliminated modules
-dce modules entryPoints = uncurry runDCE `map` reachableInModule
+
+-- | Dead code elimination of a list of modules module
+--
+runDeadCodeElimination
+  :: [Qualified Ident]
+  -- ^ entry points used to build the graph of
+  -- dependencies across module boundaries
+  -> [Module Ann]
+  -- ^ modules to dce
+  -> [Module Ann]
+  -- ^ dead code eliminated modules
+runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeElimination `map` reachableInModule
   where
+    -- DCE of a single module.
+    runModuleDeadCodeElimination
+      :: [(DCEVertex, Key, [Key])]
+      -- list of qualified names that has to be preserved
+      -> Module Ann
+      -> Module Ann
+    runModuleDeadCodeElimination vs mod@Module{ moduleDecls
+                        , moduleExports
+                        , moduleImports
+                        , moduleName
+                        , moduleForeign
+                        } = 
+      let
+          -- | filter declarations preserving the order
+          moduleDecls' :: [Bind Ann]
+          moduleDecls' = runBindDeadCodeElimination `map` filter filterByIdents moduleDecls
+            where
+            declIdents :: [Ident]
+            declIdents = concatMap toIdents vs
 
-  -- |
-  -- DCE of a single module.
-  runDCE
-    :: [(DCEVertex, Key, [Key])]
-    -- ^ list of qualified names that has to be preserved
-    -> Module Ann
-    -> Module Ann
-  runDCE vs mod@Module{ moduleDecls
-                      , moduleExports
-                      , moduleImports
-                      , moduleName
-                      , moduleForeign
-                      } = 
-    let
-        -- | filter declarations preserving the order
-        moduleDecls' :: [Bind Ann]
-        moduleDecls' = dceExpr `map` filter filterByIdents moduleDecls
-          where
-          declIdents :: [Ident]
-          declIdents = concatMap toIdents vs
+            toIdents :: (DCEVertex, Key, [Key]) -> [Ident]
+            toIdents (BindVertex b, _, _) = bindIdents b
+            toIdents _                    = []
 
-          toIdents :: (DCEVertex, Key, [Key]) -> [Ident]
-          toIdents (BindVertex b, _, _) = bindIdents b
-          toIdents _                    = []
+            filterByIdents :: Bind Ann -> Bool
+            filterByIdents = any (`elem` declIdents) . bindIdents
 
-          filterByIdents :: Bind Ann -> Bool
-          filterByIdents = any (`elem` declIdents) . bindIdents
+          idents :: [Ident]
+          idents = concatMap bindIdents moduleDecls'
 
-        idents :: [Ident]
-        idents = concatMap bindIdents moduleDecls'
+          moduleExports' :: [Ident]
+          moduleExports' =
+            filter (`elem` (idents ++ moduleForeign')) moduleExports
 
-        moduleExports' :: [Ident]
-        moduleExports' =
-          filter (`elem` (idents ++ moduleForeign')) moduleExports
+          mods :: [ModuleName]
+          mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
 
-        mods :: [ModuleName]
-        mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
+          moduleImports' :: [(Ann, ModuleName)]
+          moduleImports' = filter ((`elem` mods) . snd) moduleImports
 
-        moduleImports' :: [(Ann, ModuleName)]
-        moduleImports' = filter ((`elem` mods) . snd) moduleImports
+          moduleForeign' :: [Ident]
+          moduleForeign' = filter
+              ((`S.member` reachableSet) . Qualified (Just moduleName))
+              moduleForeign
+            where
+              reachableSet = foldr'
+                (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks)
+                S.empty vs
 
-        moduleForeign' :: [Ident]
-        moduleForeign' = filter
-            ((`S.member` reachableSet) . Qualified (Just moduleName))
-            moduleForeign
-          where
-            reachableSet = foldr'
-              (\(_, k, ks) s -> S.insert k s `S.union` S.fromList ks)
-              S.empty vs
+      in mod { moduleImports = moduleImports'
+             , moduleExports = moduleExports'
+             , moduleForeign = moduleForeign'
+             , moduleDecls   = moduleDecls'
+             }
 
-    in mod { moduleImports = moduleImports'
-           , moduleExports = moduleExports'
-           , moduleForeign = moduleForeign'
-           , moduleDecls   = moduleDecls'
-           }
+    (graph, keyForVertex, vertexForKey) = graphFromEdges verts
 
-  (graph, keyForVertex, vertexForKey) = graphFromEdges verts
-
-  -- | The Vertex set.
-  verts :: [(DCEVertex, Key, [Key])]
-  verts = do
-      Module _ _ mn _ _ _ mf ds <- modules
-      concatMap (toVertices mn) ds
-        ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
-    where
-    toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]
-    toVertices mn b@(NonRec _ i e) =
-      [(BindVertex b, mkQualified i mn, deps e)]
-    toVertices mn b@(Rec bs) =
-      let ks :: [(Key, [Key])]
-          ks = map (\((_, i), e) -> (mkQualified i mn, deps e)) bs
-      in map (\(k, ks') -> (BindVertex b, k, map fst ks ++ ks')) ks
-
-    -- | Find dependencies of an expression.
-    deps :: Expr Ann -> [Key]
-    deps = go
+    -- | The Vertex set.
+    verts :: [(DCEVertex, Key, [Key])]
+    verts = do
+        Module _ _ mn _ _ _ mf ds <- modules
+        concatMap (toVertices mn) ds
+          ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
       where
-        (_, go, _, _) = everythingOnValues (++)
-          (const [])
-          onExpr
-          onBinder
-          (const [])
+      toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]
+      toVertices mn b@(NonRec _ i e) =
+        [(BindVertex b, mkQualified i mn, deps e)]
+      toVertices mn b@(Rec bs) =
+        let ks :: [(Key, [Key])]
+            ks = map (\((_, i), e) -> (mkQualified i mn, deps e)) bs
+        in map (\(k, ks') -> (BindVertex b, k, map fst ks ++ ks')) ks
 
-        -- | Build graph from qualified identifiers.
-        onExpr :: Expr Ann -> [Key]
-        onExpr (Var _ i) = [i | isQualified i]
-        onExpr _ = []
+      -- | Find dependencies of an expression.
+      deps :: Expr Ann -> [Key]
+      deps = go
+        where
+          (_, go, _, _) = everythingOnValues (++)
+            (const [])
+            onExpr
+            onBinder
+            (const [])
 
-        onBinder :: Binder Ann -> [Key]
-        onBinder (ConstructorBinder _ _ c _) =
-          [fmap (Ident . runProperName) c]
-        onBinder _ = []
+          -- | Build graph from qualified identifiers.
+          onExpr :: Expr Ann -> [Key]
+          onExpr (Var _ i) = [i | isQualified i]
+          onExpr _ = []
 
-  -- | Vertices corresponding to the entry points which we want to keep.
-  entryPointVertices :: [Vertex]
-  entryPointVertices = catMaybes $ do
-    (_, k, _) <- verts
-    guard $ k `elem` entryPoints
-    return (vertexForKey k)
+          onBinder :: Binder Ann -> [Key]
+          onBinder (ConstructorBinder _ _ c _) =
+            [fmap (Ident . runProperName) c]
+          onBinder _ = []
 
-  -- | The list of reachable vertices grouped by module name.
-  reachableList :: [[(DCEVertex, Key, [Key])]]
-  reachableList
-    = groupBy (\(_, k1, _) (_, k2, _) -> getQual k1 == getQual k2)
-    $ sortBy (\(_, k1, _) (_, k2, _) -> getQual k1 `compare` getQual k2)
-    $ map keyForVertex (concatMap (reachable graph) entryPointVertices)
+    -- | Vertices corresponding to the entry points which we want to keep.
+    entryPointVertices :: [Vertex]
+    entryPointVertices = catMaybes $ do
+      (_, k, _) <- verts
+      guard $ k `elem` entryPoints
+      return (vertexForKey k)
 
-  reachableInModule :: [([(DCEVertex, Key, [Key])], Module Ann)]
-  reachableInModule = do
-    vs <- reachableList
-    m <- modules
-    guard (getModuleName vs == Just (moduleName m))
-    return (vs, m)
+    -- | The list of reachable vertices grouped by module name.
+    reachableList :: [[(DCEVertex, Key, [Key])]]
+    reachableList
+      = groupBy (\(_, k1, _) (_, k2, _) -> getQual k1 == getQual k2)
+      $ sortBy (\(_, k1, _) (_, k2, _) -> getQual k1 `compare` getQual k2)
+      $ map keyForVertex (concatMap (reachable graph) entryPointVertices)
 
-  getModuleName :: [(DCEVertex, Key, [Key])] -> Maybe ModuleName
-  getModuleName [] = Nothing
-  getModuleName ((_, k, _) : _) = getQual k
+    reachableInModule :: [([(DCEVertex, Key, [Key])], Module Ann)]
+    reachableInModule = do
+      vs <- reachableList
+      m <- modules
+      guard (getModuleName vs == Just (moduleName m))
+      return (vs, m)
 
--- |
--- Dead code elimination of local identifiers in `Bind`s, which detects and
+    getModuleName :: [(DCEVertex, Key, [Key])] -> Maybe ModuleName
+    getModuleName [] = Nothing
+    getModuleName ((_, k, _) : _) = getQual k
+
+
+-- | Dead code elimination of local identifiers in `Bind`s, which detects and
 -- removes unused bindings.
-dceExpr :: Bind Ann -> Bind Ann
-dceExpr = go
+--
+runBindDeadCodeElimination :: Bind Ann -> Bind Ann
+runBindDeadCodeElimination = go
   where
   (go, _, _) = everywhereOnValues id exprFn id
 

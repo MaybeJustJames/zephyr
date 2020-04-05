@@ -34,7 +34,7 @@ ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
 prop_exprDepth :: PSExpr Ann -> Property
 prop_exprDepth (PSExpr e) =
   let b = NonRec ann (Ident "x") e
-      NonRec _ _ e' = dceExpr b
+      NonRec _ _ e' = runBindDeadCodeElimination b
       d  = exprDepth e
       d' = exprDepth e'
   in collect (10 * (d' * 100 `div` (10 * d)))
@@ -44,7 +44,7 @@ prop_exprDepth (PSExpr e) =
 prop_lets :: PSExpr Ann -> Property
 prop_lets (PSExpr f) =
   let b = NonRec ann (Ident "x") f
-      NonRec _ _ f' = dceExpr b
+      NonRec _ _ f' = runBindDeadCodeElimination b
       d  = countLets f
       d' = countLets f'
       idents = findBindIdents f'
@@ -92,7 +92,7 @@ spec :: Spec
 spec = do
   context "generators" $ do
     specify "should generate Expr" $ property $ prop_exprDistribution
-  context "dceExpr" $ do
+  context "runBindDeadCodeElimination" $ do
     specify "should reduce the depth of the tree" $ property $ withMaxSuccess 10000 prop_exprDepth
     specify "should reduce the number of let bindings" $ property $ withMaxSuccess 10000 prop_lets
     specify "should remove unused identifier" $ do
@@ -102,7 +102,7 @@ spec = do
                 , NonRec ann (Ident "used") (Literal ann (CharLiteral 'b'))
                 ]
                 (Var ann (Qualified Nothing (Ident "used")))
-      case dceExpr (NonRec ann (Ident "v") e) of
+      case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
         NonRec _ _ (Let _ bs _) -> do
           bs `shouldSatisfy` not . hasIdent (Ident "notUsed")
           bs `shouldSatisfy` hasIdent (Ident "used")
@@ -115,7 +115,7 @@ spec = do
                 , NonRec ann (Ident "trDep") (Literal ann (CharLiteral 'a'))
                 ]
                 (Var ann (Qualified Nothing (Ident "used")))
-      case dceExpr (NonRec ann (Ident "v") e) of
+      case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
         NonRec _ _ (Let _ bs _) -> do
           bs `shouldSatisfy` hasIdent (Ident "trDep")
           bs `shouldSatisfy` hasIdent (Ident "used")
@@ -131,7 +131,7 @@ spec = do
                   ]
                 ]
                 (App ann (Var ann (Qualified Nothing (Ident "entry"))) (Literal ann (CharLiteral 'a')))
-      case dceExpr (NonRec ann (Ident "v") e) of
+      case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
         NonRec _ _ (Let _ bs _) -> do
           bs `shouldSatisfy` hasIdent (Ident "entry")
           bs `shouldSatisfy` hasIdent (Ident "mutDep1")
@@ -160,7 +160,7 @@ spec = do
                       [NullBinder ann]
                       (Right $ Var ann (Qualified Nothing (Ident "usedInResult2")))
                   ])
-      case dceExpr (NonRec ann (Ident "v") e) of
+      case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
         NonRec _ _ (Let _ bs _) -> do
           bs `shouldSatisfy` hasIdent (Ident "usedInExpr")
           bs `shouldSatisfy` not . hasIdent (Ident "notUsed")
@@ -182,7 +182,7 @@ spec = do
                       [ ( mkString "a", Var ann (Qualified Nothing (Ident "shadow")) )
                       , ( mkString "b", Var ann (Qualified Nothing (Ident "sunny")) )
                       ]
-      case dceExpr (NonRec ann (Ident "v") e) of
+      case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
         NonRec _ _ (Let _ bs (Let _ cs _)) -> do
           bs `shouldSatisfy` hasIdent (Ident "sunny")
           bs `shouldSatisfy` not . hasIdent (Ident "shadow")
