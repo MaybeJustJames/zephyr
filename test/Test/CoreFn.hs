@@ -1,4 +1,4 @@
-module TestDCECoreFn  where
+module Test.CoreFn ( main )  where
 
 import Prelude ()
 import Prelude.Compat
@@ -16,7 +16,7 @@ import Language.PureScript.PSString
 import Test.Hspec
 import Test.QuickCheck
 
-import Generators hiding (ann)
+import Test.Generators hiding (ann)
 
 main :: IO ()
 main = hspec spec
