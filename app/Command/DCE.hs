@@ -229,22 +229,22 @@ formatDCEAppError opts _ (ParseErrors errs) =
           x -> ["... (" <> T.pack (show x) <> " more)"]
   in sformat
         (string%": Failed parsing:\n  "%stext)
-        (colorString errorColor "Error")
+        (DCE.colorString DCE.errorColor "Error")
         (T.intercalate "\n\t" errs')
 formatDCEAppError _ _ (NoInputs path)
   = sformat
         (stext%": No inputs found under "%string%" directory.\n"
               %"       Please run `purs compile --codegen corefn ..` or"
               %"`pulp build -- --codegen corefn`")
-        (colorText errorColor "Error")
-        (colorString codeColor path)
+        (DCE.colorText DCE.errorColor "Error")
+        (DCE.colorString DCE.codeColor path)
 formatDCEAppError _ _ (InputNotDirectory path)
   = sformat
         (stext%": Directory "%string%" does not exists.")
-        (colorText errorColor "Error")
-        (colorString codeColor path)
+        (DCE.colorText DCE.errorColor "Error")
+        (DCE.colorString DCE.codeColor path)
 formatDCEAppError _ relPath (CompilationError err)
-  = T.pack $ displayDCEError relPath err
+  = T.pack $ DCE.displayDCEError relPath err
 
 
 getEntryPoints
@@ -308,7 +308,7 @@ dceCommand DCEOptions { dceEntryPoints
     let (notFound, entryPoints) = partitionEithers $ getEntryPoints (fmap snd . rights $ inpts) dceEntryPoints
 
     when (not $ null notFound) $
-      case filter isEntryParseError notFound of
+      case filter DCE.isEntryParseError notFound of
         []   -> throwError (CompilationError $ EntryPointsNotFound notFound)
         perrs ->
           let fn (EntryParseError s) acc = s : acc
@@ -321,11 +321,11 @@ dceCommand DCEOptions { dceEntryPoints
     -- run `dceEval` and `dce` on the `CoreFn`
     let mods = if dceDoEval
                   then DCE.runDeadCodeElimination
-                        $ entryPoints
-                        $ DCE.evaluate (snd `map` rights inpts)
+                        entryPoints
+                        (DCE.evaluate (snd `map` rights inpts))
                   else DCE.runDeadCodeElimination
-                        $ entryPoints
-                        $ snd `map` rights inpts
+                        entryPoints
+                        (snd `map` rights inpts)
 
     -- relPath <- liftIO getCurrentDirectory
     -- liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
