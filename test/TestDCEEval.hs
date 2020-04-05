@@ -46,7 +46,7 @@ mp :: FilePath
 mp = "src/Test.purs"
 
 dceEvalExpr' :: Expr Ann -> [Module Ann] -> Expr Ann
-dceEvalExpr' e mods = case dceEval ([testMod , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
+dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
     ((Module _ _ _ _ _ _ _ [NonRec _ _ e', _]) : _) -> e'
     _                                               -> error "not supported"
   where
@@ -101,7 +101,7 @@ prop_eval (PSExpr g) =
 
 spec :: Spec
 spec =
-  context "dceEval" $ do
+  context "evaluate" $ do
     -- specify "should evaluate" $ property $ withMaxSuccess 100_000 prop_eval
     specify "should simplify when comparing two literal values" $ do
       let v :: Expr Ann
@@ -241,7 +241,7 @@ spec =
             []
             [NonRec ann (Ident "main") e]
       -- TODO
-      case dceEval [mm, um] of
+      case evaluate [mm, um] of
         ((Module _ _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _) -> return ()
         r -> assertFailure $ "unexpected result:\n" ++ show r
         -- Left err -> assertFailure $ "compilation error: " ++ show err
