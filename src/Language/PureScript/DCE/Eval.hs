@@ -67,8 +67,7 @@ markDone i (ConsStack l ls) =
     | otherwise = (x         : is, done)
 
 
--- |
--- Evaluate expressions in a module:
+-- | Evaluate expressions in a module:
 --
 -- * @Data.Eq.eq@ of two literals
 -- * @Data.Array.index@ on a literal array
@@ -78,6 +77,7 @@ markDone i (ConsStack l ls) =
 --
 -- Keep stack of local identifiers from @let@ and @case@ expressions, ignoring
 -- the ones that are comming from abstractions.
+--
 evaluate
   :: [Module Ann]
   -> [Module Ann]
@@ -106,14 +106,14 @@ evaluate mods = map evalModule mods
       fn (ConstructorBinder _ _ _ as, e) = concatMap fn (zip as (repeat e))
       fn (NamedBinder _ i b, e)          = (i, e) : fn (b, e)
 
-  -- |
-  -- Evaluate expressions, keep the stack of local identifiers. It does not
+  -- | Evaluate expressions, keep the stack of local identifiers. It does not
   -- track identifiers which are coming from abstractions, but `Let` and
   -- `Case` binders are pushed into / poped from the stack.
   -- * `Let` binds are added in `onBind` and poped from the stack
   --   when visiting `Let` expression.
   -- * `Case` binds are added in `pushBinders` and poped in the
   --  `everywhereOnValuesM` monadic action.
+  --
   onExpr :: ModuleName
          -> Stack
          -> Expr Ann
@@ -168,14 +168,15 @@ evaluate mods = map evalModule mods
       Nothing -> e
 
 
-  -- |
-  -- Evaluate an expression
+  -- | Evaluate an expression
+  --
   -- * `Data.Eq.eq` of two literals
   -- * `Data.Array.index` on a literal array
   -- * Object accessors
   -- * Semigroup operations (Array, String, Unit)
   -- * Semiring operations (Int, Number, Unit)
   -- * Heyting algebra operations (Boolean, Unit)
+  --
   eval :: ModuleName
        -> Stack
        -> Expr Ann
@@ -189,9 +190,9 @@ evaluate mods = map evalModule mods
 
   eval mn st (Var _ann (Qualified (Just imn) i)) =
     case findQualifiedExpr imn i of
-      Nothing -> error "eval: identifier not found" -- throwError (IdentifierNotFound cmn ann qi)
-      Just (Right e)  -> eval mn st e
-      Just (Left _)   -> Nothing
+      Nothing        -> error "evaluate: identifier not found"
+      Just (Right e) -> eval mn st e
+      Just (Left _)  -> Nothing
 
   eval mn st (Literal ann (ArrayLiteral es)) =
     let es' = map (\e -> fromMaybe e $ eval mn st e) es
