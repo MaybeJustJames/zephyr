@@ -83,140 +83,173 @@ evaluate
   -> [Module Ann]
 evaluate mods = map evalModule mods
   where
-  evalModule :: Module Ann -> Module Ann
-  evalModule mod@Module{ moduleName, moduleDecls } =
-    mod { moduleDecls = map (onModuleBind moduleName) moduleDecls }
+    evalModule :: Module Ann -> Module Ann
+    evalModule mod@Module{ moduleName, moduleDecls } =
+      mod { moduleDecls = map (onModuleBind moduleName) moduleDecls }
 
-  onModuleBind :: ModuleName -> Bind Ann -> Bind Ann
-  onModuleBind mn (NonRec a i e) = NonRec a i (onExpr mn EmptyStack e)
-  onModuleBind mn (Rec binds')    = Rec $ map (fmap $ onExpr mn (pushStack (map (\((_, i), e) -> (i, e)) binds') EmptyStack)) binds'
+    onModuleBind :: ModuleName -> Bind Ann -> Bind Ann
+    onModuleBind mn (NonRec a i e) = NonRec a i (rewriteExpr mn EmptyStack e)
+    onModuleBind mn (Rec binds')    = Rec $ map (fmap $ rewriteExpr mn (pushStack (map (\((_, i), e) -> (i, e)) binds') EmptyStack)) binds'
 
-  -- Push identifiers defined in binders onto the stack
-  pushBinders
-    :: [Expr Ann]
-    -> [Binder Ann]
-    -> Stack
-    -> Stack
-  pushBinders es bs = pushStack (concatMap fn (zip bs es))
-    where
-      fn :: (Binder Ann, Expr Ann) -> [(Ident, Expr Ann)]
-      fn (NullBinder _, _ )              = []
-      fn (LiteralBinder _ _, _)          = []
-      fn (VarBinder _ i, e)              = [(i,e)]
-      fn (ConstructorBinder _ _ _ as, e) = concatMap fn (zip as (repeat e))
-      fn (NamedBinder _ i b, e)          = (i, e) : fn (b, e)
+    -- Push identifiers defined in binders onto the stack
+    pushBinders :: [Expr Ann] -> [Binder Ann] -> Stack -> Stack
+    pushBinders es bs = pushStack (concatMap fn (zip bs es))
+      where
+        fn :: (Binder Ann, Expr Ann) -> [(Ident, Expr Ann)]
+        fn (NullBinder _, _ )              = []
+        fn (LiteralBinder _ _, _)          = []
+        fn (VarBinder _ i, e)              = [(i,e)]
+        fn (ConstructorBinder _ _ _ as, e) = concatMap fn (zip as (repeat e))
+        fn (NamedBinder _ i b, e)          = (i, e) : fn (b, e)
 
-  -- | Evaluate expressions, keep the stack of local identifiers. It does not
-  -- track identifiers which are coming from abstractions, but `Let` and
-  -- `Case` binders are pushed into / poped from the stack.
-  -- * `Let` binds are added in `onBind` and poped from the stack
-  --   when visiting `Let` expression.
-  -- * `Case` binds are added in `pushBinders` and poped in the
-  --  `everywhereOnValuesM` monadic action.
-  --
-  onExpr :: ModuleName
-         -> Stack
-         -> Expr Ann
-         -> Expr Ann
-  onExpr mn st c@(Case ann es cs) =
-      let es'  = map (\e -> eval mn st e >>= getLiteral) es
-          cs'  = getFirst $ foldMap (fndCase ((snd . fromJust) `map` es')) cs
-      in if all isJust es'
-          then case cs' of
-            Nothing
-              -> c
-            Just (CaseAlternative bs (Right e))
-              | not (any binds bs)
-              -> onExpr mn (pushStack [] st) e
-              | otherwise
-              -> Case ann es (maybeToList cs')
-            Just (CaseAlternative bs (Left gs))
-              -> Case ann es [CaseAlternative bs (Left (fltGuards (pushBinders es bs st) gs))]
-          else Case ann es $
-                filter
-                  (fltBinders (fmap snd `map` es') . caseAlternativeBinders)
-                  cs
-    where
-      fltGuards
-        :: Stack
-        -> [(Guard Ann, Expr Ann)]
-        -> [(Guard Ann, Expr Ann)]
-      fltGuards _  [] = []
-      fltGuards st' (guard'@(g, e) : rest) =
-        case eval mn st' g of
-          Just (Literal _ t)
-            | t `eqLit` BooleanLiteral True
-            ->  [(Literal (extractAnn g) (BooleanLiteral True), e)]
-            | otherwise -- guard expression must evaluate to a Boolean
-            -> fltGuards st' rest
-          _ -> guard' : fltGuards st' rest
+    -- | Evaluate expressions, keep the stack of local identifiers. It does not
+    -- track identifiers which are coming from abstractions, but `Let` and
+    -- `Case` binders are pushed into / poped from the stack.
+    -- * `Let` binds are added in `onBind` and poped from the stack
+    --   when visiting `Let` expression.
+    -- * `Case` binds are added in `pushBinders` and poped in the
+    --  `everywhereOnValuesM` monadic action.
+    --
+    rewriteExpr :: ModuleName -> Stack -> Expr Ann -> Expr Ann
+    rewriteExpr mn st c@(Case ann es cs) =
+        let es'  = map (\e -> eval mods mn st e >>= getLiteral) es
+            cs'  = getFirst $ foldMap (fndCase ((snd . fromJust) `map` es')) cs
+        in if all isJust es'
+            then case cs' of
+              Nothing
+                -> c
+              Just (CaseAlternative bs (Right e))
+                | not (any binds bs)
+                -> rewriteExpr mn (pushStack [] st) e
+                | otherwise
+                -> Case ann es (maybeToList cs')
+              Just (CaseAlternative bs (Left gs))
+                -> Case ann es [CaseAlternative bs (Left (fltGuards mn (pushBinders es bs st) gs))]
+            else Case ann es $
+                  filter
+                    (fltBinders (fmap snd `map` es') . caseAlternativeBinders)
+                    cs
 
-  onExpr mn st (Let _ann bs e) = onExpr mn (pushStack (concatMap unBind bs) st) e
+    rewriteExpr mn st (Let _ann bs e) = rewriteExpr mn (pushStack (concatMap unBind bs) st) e
 
-  onExpr mn st e@Var{} =
-    case eval mn st e of
-      Just l@(Literal _ NumericLiteral{}) -> l
-      Just l@(Literal _ CharLiteral{})    -> l
-      Just l@(Literal _ BooleanLiteral{}) -> l
-      -- preserve string, array and object literals
-      Just _  -> e
-      Nothing -> e
+    rewriteExpr mn st e@Var{} =
+      case eval mods mn st e of
+        Just l@(Literal _ NumericLiteral{}) -> l
+        Just l@(Literal _ CharLiteral{})    -> l
+        Just l@(Literal _ BooleanLiteral{}) -> l
+        -- preserve string, array and object literals
+        Just _  -> e
+        Nothing -> e
 
-  onExpr mn st e =
-    case eval mn st e of
-      Just l  -> l
-      Nothing -> e
+    rewriteExpr mn st e =
+      case eval mods mn st e of
+        Just l  -> l
+        Nothing -> e
+
+    fltBinders :: [Maybe (Literal (Expr Ann))]
+               -> [Binder Ann]
+               -> Bool
+    fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) = l1 `eqLit` l2 && fltBinders ts bs
+    fltBinders _              _                         = True
+
+    fltGuards
+      :: ModuleName
+      -> Stack
+      -> [(Guard Ann, Expr Ann)]
+      -> [(Guard Ann, Expr Ann)]
+    fltGuards _ _  [] = []
+    fltGuards mn st (guard'@(g, e) : rest) =
+      case eval mods mn st g of
+        Just (Literal _ t)
+          | t `eqLit` BooleanLiteral True
+          ->  [(Literal (extractAnn g) (BooleanLiteral True), e)]
+          | otherwise -- guard expression must evaluate to a Boolean
+          -> fltGuards mn st rest
+        _ -> guard' : fltGuards mn st rest
+
+    getLiteral :: Expr Ann -> Maybe (Ann, Literal (Expr Ann))
+    getLiteral (Literal ann l) = Just (ann, l)
+    getLiteral _               = Nothing
+
+    fndCase :: [Literal (Expr Ann)] -> CaseAlternative Ann -> First (CaseAlternative Ann)
+    fndCase as c =
+        if matches as (caseAlternativeBinders c)
+          then First (Just c)
+          else First Nothing
+      where
+        matches :: [Literal (Expr Ann)] -> [Binder Ann] -> Bool
+        matches [] [] = True
+        matches [] _  = error "fndCase: not maching case expressions and case alternatives"
+        matches _ []  = error "fndCase: not maching case expressions and case alternatives"
+        matches (t:ts) (LiteralBinder _ t' : bs) = t `eqLit` t' && matches ts bs
+        matches (t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
+        matches (_:ts) (_:bs) = matches ts bs
+
+    -- Does a binder binds?
+    binds :: Binder Ann -> Bool
+    binds (NullBinder _)                       = False
+    binds (LiteralBinder _ (NumericLiteral _)) = False
+    binds (LiteralBinder _ (StringLiteral _))  = False
+    binds (LiteralBinder _ (CharLiteral _))    = False
+    binds (LiteralBinder _ (BooleanLiteral _)) = False
+    binds (LiteralBinder _ (ArrayLiteral bs))  = any binds bs
+    binds (LiteralBinder _ (ObjectLiteral bs)) = any (binds . snd) bs
+    binds (VarBinder _ _)                      = True
+    binds (ConstructorBinder _ _ _ bs)         = any binds bs
+    binds NamedBinder{}                        = True
 
 
-  -- | Evaluate an expression
-  --
-  -- * `Data.Eq.eq` of two literals
-  -- * `Data.Array.index` on a literal array
-  -- * Object accessors
-  -- * Semigroup operations (Array, String, Unit)
-  -- * Semiring operations (Int, Number, Unit)
-  -- * Heyting algebra operations (Boolean, Unit)
-  --
-  eval :: ModuleName
-       -> Stack
-       -> Expr Ann
-       -> Maybe (Expr Ann)
+-- | Evaluate an expression
+--
+-- * `Data.Eq.eq` of two literals
+-- * `Data.Array.index` on a literal array
+-- * Object accessors
+-- * Semigroup operations (Array, String, Unit)
+-- * Semiring operations (Int, Number, Unit)
+-- * Heyting algebra operations (Boolean, Unit)
+--
+eval :: [Module Ann]
+     -> ModuleName
+     -> Stack
+     -> Expr Ann
+     -> Maybe (Expr Ann)
 
-  eval mn st (Var _ (Qualified Nothing i)) = 
+eval mods mn st (Var _ (Qualified Nothing i)) = 
     case lookupStack i st of
       Nothing               -> Nothing
       Just ((_, e), Done)   -> Just e
-      Just ((_, e), NotYet) -> eval mn (markDone i st) e
+      Just ((_, e), NotYet) -> eval mods mn (markDone i st) e
 
-  eval mn st (Var _ann (Qualified (Just imn) i)) =
-    case findQualifiedExpr imn i of
-      Nothing        -> error "evaluate: identifier not found"
-      Just (Right e) -> eval mn st e
-      Just (Left _)  -> Nothing
+eval mods mn st (Var _ann qi@(Qualified (Just imn) i)) =
+    case lookupQualifiedExpr mods imn i of
+      Nothing             -> error ("qualified expression " ++ show qi  ++ " not found")
+      Just (FoundExpr e)  -> eval mods mn st e
+      Just Found          -> Nothing
 
-  eval mn st (Literal ann (ArrayLiteral es)) =
-    let es' = map (\e -> fromMaybe e $ eval mn st e) es
+eval mods mn st (Literal ann (ArrayLiteral es)) =
+    let es' = map (\e -> fromMaybe e $ eval mods mn st e) es
     in Just (Literal ann (ArrayLiteral es'))
 
-  eval mn st (Literal ann (ObjectLiteral as)) =
-    let as' = map (\x@(n, e) -> case eval mn st e of
-                                  Nothing -> x
-                                  Just e' -> (n, e')
+eval mods mn st (Literal ann (ObjectLiteral as)) =
+    let as' = map (\x@(n, e) ->
+                    case eval mods mn st e of
+                      Nothing -> x
+                      Just e' -> (n, e')
                   ) as
     in Just (Literal ann (ObjectLiteral as'))
 
-  eval _mn _st e@Literal{} = Just e
+eval _mods _mn _st e@Literal{} = Just e
 
-  eval mn st (Accessor _ann a (Literal _ (ObjectLiteral as))) =
+eval mods mn st (Accessor _ann a (Literal _ (ObjectLiteral as))) =
     case a `lookup` as of
       -- TODO: use Either to return error
       Nothing -> error "accessor not found" -- throwError (AccessorNotFound mn ann a)
-      Just e  -> eval mn st e
+      Just e  -> eval mods mn st e
 
-  --
-  -- evaluate boolean operations
-  --
-  eval mn st
+--
+-- evaluate boolean operations
+--
+eval mods mn st
     (App ann
       (App _
         (App _
@@ -226,8 +259,8 @@ evaluate mods = map evalModule mods
               (Ident "eq")))
           (Var _ inst))
           e1)
-      e2)
-    = if inst `elem`
+      e2) =
+    if inst `elem`
           [ Qualified (Just C.eqMod) (Ident "eqBoolean")
           , Qualified (Just C.eqMod) (Ident "eqInt")
           , Qualified (Just C.eqMod) (Ident "eqNumber")
@@ -236,39 +269,39 @@ evaluate mods = map evalModule mods
           , Qualified (Just C.eqMod) (Ident "eqUnit")
           , Qualified (Just C.eqMod) (Ident "eqVoid")
           ]
-        then case (eval mn st e1, eval mn st e2) of
-              (Just (Literal _ l1), Just (Literal _ l2))
-                -> Just $ Literal ann $ BooleanLiteral (eqLit l1 l2)
-              _ -> Nothing
-        else Nothing
+      then case (eval mods mn st e1, eval mods mn st e2) of
+          (Just (Literal _ l1), Just (Literal _ l2))
+            -> Just $ Literal ann $ BooleanLiteral (eqLit l1 l2)
+          _ -> Nothing
+      else Nothing
 
-  --
-  -- evaluate array indexing
-  --
-  eval mn st
+--
+-- evaluate array indexing
+--
+eval mods mn st
+      (App _
         (App _
-          (App _
-            (Var ann@(ss, _, _, _)
-              (Qualified
-                (Just (ModuleName "Data.Array"))
-                (Ident "index")))
-            (Literal _ (ArrayLiteral as)))
-          (Literal _ (NumericLiteral (Left x))))
-    = case (as `atMay` fromIntegral x) of
-        Nothing -> error "ArrayIdxOutOfBound"
-        Just e -> case  eval mn st e of
-          Nothing -> Nothing
-          Just e' ->
-            Just $ App ann
-                    (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"]))
-                      (Qualified
-                        (Just C.maybeMod)
-                        (Ident "Just")))
-                    e'
-  --
-  -- evalualte semigroup operations
-  --
-  eval _ms _st
+          (Var ann@(ss, _, _, _)
+            (Qualified
+              (Just (ModuleName "Data.Array"))
+              (Ident "index")))
+          (Literal _ (ArrayLiteral as)))
+        (Literal _ (NumericLiteral (Left x)))) =
+    case (as `atMay` fromIntegral x) of
+      Nothing -> error "ArrayIdxOutOfBound"
+      Just e -> case  eval mods mn st e of
+        Nothing -> Nothing
+        Just e' ->
+          Just $ App ann
+                  (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"]))
+                    (Qualified
+                      (Just C.maybeMod)
+                      (Ident "Just")))
+                  e'
+--
+-- evalualte semigroup operations
+--
+eval _ _ms _st
     (App ann
       (App _
         (App _
@@ -290,10 +323,11 @@ evaluate mods = map evalModule mods
       = Just $ Var ann (Qualified (Just C.unit) (Ident "unit"))
       | otherwise
       = Nothing
-  --
-  -- evalulate semiring operations
-  --
-  eval _mn _st
+
+--
+-- evalulate semiring operations
+--
+eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
@@ -319,7 +353,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _ _mn _st
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.Semiring) (Ident "zero")))
       (Var _ qi))
@@ -339,7 +374,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _ _mn _st
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.Semiring) (Ident "one")))
       (Var _ qi))
@@ -357,7 +393,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
@@ -383,10 +420,11 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  --
-  -- evaluate ring operations
-  --
-  eval _mn _st
+
+--
+-- evaluate ring operations
+--
+eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
@@ -410,7 +448,8 @@ evaluate mods = map evalModule mods
     = Just $ Var
         (ss, c, Nothing, Nothing)
         (Qualified (Just C.unit) (Ident "unit"))
-  eval _mn _st
+
+eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (Var _ (Qualified (Just C.Ring) (Ident "negate")))
@@ -430,10 +469,11 @@ evaluate mods = map evalModule mods
     = Just  $ Var
         (ss, c, Nothing, Nothing)
         (Qualified (Just C.unit) (Ident "unit"))
-  --
-  -- evaluate Heyting algebras operations
-  --
-  eval _mn _st
+
+--
+-- evaluate Heyting algebras operations
+--
+eval _ _mn _st
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "ff")))
       (Var _ qi))
@@ -445,7 +485,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _ _mn _st
     (App (ss, c, _, _)
       (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "tt")))
       (Var _ qi))
@@ -457,7 +498,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "not")))
@@ -474,7 +516,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
@@ -494,7 +537,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
@@ -514,7 +558,8 @@ evaluate mods = map evalModule mods
         (Qualified (Just C.unit) (Ident "unit"))
     | otherwise
     = Nothing
-  eval _mn _st
+
+eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
@@ -535,75 +580,47 @@ evaluate mods = map evalModule mods
     | otherwise
     = Nothing
 
-  --
-  -- default case (no evaluation)
-  --
-  eval _ _ _ = Nothing
+--
+-- default case (no evaluation)
+--
+eval _ _ _ _ = Nothing
 
-  eqLit :: Literal a -> Literal b -> Bool
-  eqLit (NumericLiteral (Left a))  (NumericLiteral (Left b))  = a == b
-  eqLit (NumericLiteral (Right a)) (NumericLiteral (Right b)) = a == b
-  eqLit (StringLiteral a)          (StringLiteral b)          = a == b
-  eqLit (CharLiteral a)            (CharLiteral b)            = a == b
-  eqLit (BooleanLiteral a)         (BooleanLiteral b)         = a == b
-  eqLit _                          _                          = False
 
-  fltBinders :: [Maybe (Literal (Expr Ann))]
-             -> [Binder Ann]
-             -> Bool
-  fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) = l1 `eqLit` l2 && fltBinders ts bs
-  fltBinders _              _                         = True
+-- | Lookup result, either with or without the evidence.
+--
+data LookupResult =
+      FoundExpr !(Expr Ann)
+    | Found
 
-  getLiteral :: Expr Ann -> Maybe (Ann, Literal (Expr Ann))
-  getLiteral (Literal ann l) = Just (ann, l)
-  getLiteral _               = Nothing
 
-  fndCase :: [Literal (Expr Ann)] -> CaseAlternative Ann -> First (CaseAlternative Ann)
-  fndCase as c =
-      if matches as (caseAlternativeBinders c)
-        then First (Just c)
-        else First Nothing
-    where
-      matches :: [Literal (Expr Ann)] -> [Binder Ann] -> Bool
-      matches [] [] = True
-      matches [] _  = error "fndCase: not maching case expressions and case alternatives"
-      matches _ []  = error "fndCase: not maching case expressions and case alternatives"
-      matches (t:ts) (LiteralBinder _ t' : bs) = t `eqLit` t' && matches ts bs
-      matches (t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
-      matches (_:ts) (_:bs) = matches ts bs
-
-  -- Does a binder binds?
-  binds :: Binder Ann -> Bool
-  binds (NullBinder _)                       = False
-  binds (LiteralBinder _ (NumericLiteral _)) = False
-  binds (LiteralBinder _ (StringLiteral _))  = False
-  binds (LiteralBinder _ (CharLiteral _))    = False
-  binds (LiteralBinder _ (BooleanLiteral _)) = False
-  binds (LiteralBinder _ (ArrayLiteral bs))  = any binds bs
-  binds (LiteralBinder _ (ObjectLiteral bs)) = any (binds . snd) bs
-  binds (VarBinder _ _)                      = True
-  binds (ConstructorBinder _ _ _ bs)         = any binds bs
-  binds NamedBinder{}                        = True
-
-  -- |
-  -- Find a qualified name in the list of modules `mods`, return `Left ()` for
-  -- `Prim` values, generics and foreign imports, `Right` for found bindings.
-  findQualifiedExpr :: ModuleName -> Ident -> Maybe (Either () (Expr Ann))
-  findQualifiedExpr (ModuleName mn) _
+-- | Find a qualified name in the list of modules `mods`, return `Found` for
+-- `Prim` values, generics and foreign imports, `Right` for found bindings.
+--
+lookupQualifiedExpr :: [Module Ann]
+                    -> ModuleName
+                    -> Ident
+                    -> Maybe LookupResult
+lookupQualifiedExpr _ (ModuleName mn) _
     | "Prim" : _ <- T.splitOn "." mn
-    = Just (Left ())
-  findQualifiedExpr (ModuleName "Data.Generic") (Ident "anyProxy") = Just (Left ())
-  findQualifiedExpr mn i
-      = Right <$> (mod >>= getFirst . foldMap fIdent . concatMap unBind . moduleDecls)
-    <|> Left  <$> (mod >>= getFirst . foldMap ffIdent . moduleForeign)
-    where
-    mod :: Maybe (Module Ann)
-    mod = getFirst $ foldMap (\m -> if moduleName m == mn then First (Just m) else First Nothing) mods
+    = Just Found
+lookupQualifiedExpr _ (ModuleName "Data.Generic") (Ident "anyProxy") =
+    Just Found
+lookupQualifiedExpr mods mn i =
+        (mod >>= fmap FoundExpr
+               . lookup i
+               . concatMap unBind
+               . moduleDecls)
+    <|> (mod >>= fmap (const Found)
+               . find (== i)
+               . moduleForeign)
+  where
+    mod = find (\m -> moduleName m == mn) mods
 
-    fIdent :: (Ident, Expr Ann) -> First (Expr Ann)
-    fIdent (i', e) | i == i'    = First (Just e)
-                   | otherwise  = First Nothing
 
-    ffIdent :: Ident -> First ()
-    ffIdent i' | i == i'   = First (Just ())
-               | otherwise = First Nothing
+eqLit :: Literal a -> Literal b -> Bool
+eqLit (NumericLiteral (Left a))  (NumericLiteral (Left b))  = a == b
+eqLit (NumericLiteral (Right a)) (NumericLiteral (Right b)) = a == b
+eqLit (StringLiteral a)          (StringLiteral b)          = a == b
+eqLit (CharLiteral a)            (CharLiteral b)            = a == b
+eqLit (BooleanLiteral a)         (BooleanLiteral b)         = a == b
+eqLit _                          _                          = False
