@@ -4,7 +4,7 @@ module Language.PureScript.DCE.Eval
   ( evaluate ) where
 
 import Control.Monad
---import Control.Monad.Except
+import Control.Exception (Exception (..), throw)
 import Control.Monad.Writer
 import Data.List (find)
 import Data.Maybe (fromMaybe, maybeToList)
@@ -37,6 +37,19 @@ data StackT frame =
 
 
 type Stack = StackT [((Ident, Expr Ann), EvalState)]
+
+-- | Errors thrown by the evaluation.
+--
+data EvaluationError
+    = QualifiedExpresionError Ann (Qualified Ident) ![ModuleName]
+    -- ^ qualified expression not found in the list of modules
+    | OutOfBoundArrayIndex Ann
+    -- ^ out of bound array index
+    | NotFoundRecordField Ann PSString
+    -- ^ record field not found
+  deriving Show
+
+instance Exception EvaluationError
 
 
 pushStack :: [(Ident, Expr Ann)]
@@ -179,8 +192,8 @@ evaluate mods = map evalModule mods
       where
         matches :: [Literal (Expr Ann)] -> [Binder Ann] -> Bool
         matches [] [] = True
-        matches [] _  = error "fndCase: not maching case expressions and case alternatives"
-        matches _ []  = error "fndCase: not maching case expressions and case alternatives"
+        matches [] _  = error "impossible happend: not matching case expressions and case alternatives"
+        matches _ []  = error "impossible happend: not matching case expressions and case alternatives"
         matches (t:ts) (LiteralBinder _ t' : bs) = t `eqLit` t' && matches ts bs
         matches (t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
         matches (_:ts) (_:bs) = matches ts bs
@@ -199,7 +212,7 @@ evaluate mods = map evalModule mods
     binds NamedBinder{}                        = True
 
 
--- | Evaluate an expression
+-- | Evaluate an expresion
 --
 -- * `Data.Eq.eq` of two literals
 -- * `Data.Array.index` on a literal array
@@ -220,9 +233,9 @@ eval mods mn st (Var _ (Qualified Nothing i)) =
       Just ((_, e), Done)   -> Just e
       Just ((_, e), NotYet) -> eval mods mn (markDone i st) e
 
-eval mods mn st (Var _ann qi@(Qualified (Just imn) i)) =
+eval mods mn st (Var ann qi@(Qualified (Just imn) i)) =
     case lookupQualifiedExpr mods imn i of
-      Nothing             -> error ("qualified expression " ++ show qi  ++ " not found")
+      Nothing             -> throw (QualifiedExpresionError ann qi (moduleName `map` mods))
       Just (FoundExpr e)  -> eval mods mn st e
       Just Found          -> Nothing
 
@@ -240,10 +253,10 @@ eval mods mn st (Literal ann (ObjectLiteral as)) =
 
 eval _mods _mn _st e@Literal{} = Just e
 
-eval mods mn st (Accessor _ann a (Literal _ (ObjectLiteral as))) =
+eval mods mn st (Accessor ann a (Literal _ (ObjectLiteral as))) =
     case a `lookup` as of
-      -- TODO: use Either to return error
-      Nothing -> error "accessor not found" -- throwError (AccessorNotFound mn ann a)
+      -- this cannot happen, unless an unsafe usage of ffi
+      Nothing -> throw (NotFoundRecordField ann a)
       Just e  -> eval mods mn st e
 
 --
@@ -288,7 +301,7 @@ eval mods mn st
           (Literal _ (ArrayLiteral as)))
         (Literal _ (NumericLiteral (Left x)))) =
     case (as `atMay` fromIntegral x) of
-      Nothing -> error "ArrayIdxOutOfBound"
+      Nothing -> throw (OutOfBoundArrayIndex ann)
       Just e -> case  eval mods mn st e of
         Nothing -> Nothing
         Just e' ->
