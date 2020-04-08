@@ -1,0 +1,385 @@
+Loading cabal repl lib:zephyr ...
+Build profile: -w ghc-8.6.5 -O1
+In order, the following will be built (use -v for more details):
+ - zephyr-0.2.2 (lib) (ephemeral targets)
+Preprocessing library for zephyr-0.2.2..
+GHCi, version 8.6.5: http://www.haskell.org/ghc/  :? for help
+Loaded GHCi configuration from /home/coot/.ghci
+[1 of 7] Compiling Language.PureScript.DCE.Constants ( src/Language/PureScript/DCE/Constants.hs, interpre
+ted )
+[2 of 7] Compiling Language.PureScript.DCE.Errors ( src/Language/PureScript/DCE/Errors.hs, interpreted )
+[3 of 7] Compiling Language.PureScript.DCE.Foreign ( src/Language/PureScript/DCE/Foreign.hs, interpreted 
+)
+[4 of 7] Compiling Language.PureScript.DCE.Utils ( src/Language/PureScript/DCE/Utils.hs, interpreted )
+[5 of 7] Compiling Language.PureScript.DCE.Eval ( src/Language/PureScript/DCE/Eval.hs, interpreted )
+[6 of 7] Compiling Language.PureScript.DCE.CoreFn ( src/Language/PureScript/DCE/CoreFn.hs, interpreted )
+[7 of 7] Compiling Language.PureScript.DCE ( src/Language/PureScript/DCE.hs, interpreted )
+Ok, 7 modules loaded.
+
+All good (7 modules, at 20:27:33)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:27:56)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:(107,7)-(108,18): error:
+    • Couldn't match expected type ‘[((Ann, Ident), Expr Ann)]
+                                    -> Bind Ann’
+                  with actual type ‘Bind a0’
+    • The function ‘Rec’ is applied to two arguments,
+      but its type ‘[((a0, Ident), Expr a0)] -> Bind a0’ has only one
+      In the expression: Rec [] binds'
+      In an equation for ‘rewriteBind’:
+          rewriteBind mn (Rec binds') = Rec [] binds'
+    |
+107 |       Rec [] -- map (fmap $ rewriteExpr mn (pushStack ((\((_, i), e) -> (i, e)) `map` binds') 
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:108:13-16: error:
+    parse error on input ‘bind’
+    |
+108 |           | bind <- binds' 
+    |             ^^^^
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:107:82-86: error:
+    • Variable not in scope: bind' :: ((Ann, Ident), a0)
+    • Perhaps you meant one of these:
+        ‘bind’ (line 108), ‘binds'’ (line 106), ‘binds’ (line 209)
+    |
+107 |       Rec [ rewriteExpr mn pushStack ((\((_, i), e) -> (i, e)) `map` binds') <$> bind'
+    |                                                                                  ^^^^^
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:107:84-88: error:
+    • Variable not in scope: bind' :: ((Ann, Ident), Expr Ann)
+    • Perhaps you meant one of these:
+        ‘bind’ (line 108), ‘binds'’ (line 106), ‘binds’ (line 209)
+    |
+107 |       Rec [ rewriteExpr mn (pushStack ((\((_, i), e) -> (i, e)) `map` binds')) <$> bind'
+    |                                                                                    ^^^^^
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:107:29-77: error:
+    • Couldn't match type ‘Stack -> Stack’
+                     with ‘StackT [((Ident, Expr Ann), EvalState)]’
+      Expected type: Stack
+        Actual type: Stack -> Stack
+    • Probable cause: ‘pushStack’ is applied to too few arguments
+      In the second argument of ‘rewriteExpr’, namely
+        ‘(pushStack ((\ ((_, i), e) -> (i, e)) `map` binds'))’
+      In the first argument of ‘(<$>)’, namely
+        ‘rewriteExpr
+           mn (pushStack ((\ ((_, i), e) -> (i, e)) `map` binds'))’
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:34:09)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:114:5: error:
+    parse error (possibly incorrect indentation or mismatched brackets)
+    |
+114 |     pushBinders :: [Expr Ann] -> [Binder Ann] -> Stack -> Stack
+    |     ^
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+src/Language/PureScript/DCE/Eval.hs:107:28-32: error:
+    • Couldn't match type ‘Stack -> Stack’
+                     with ‘StackT [((Ident, Expr Ann), EvalState)]’
+      Expected type: Stack
+        Actual type: Stack -> Stack
+    • Probable cause: ‘stack’ is applied to too few arguments
+      In the second argument of ‘rewriteExpr’, namely ‘stack’
+      In the first argument of ‘(<$>)’, namely ‘rewriteExpr mn stack’
+      In the expression: rewriteExpr mn stack <$> bind'
+    |
+107 |       Rec [ rewriteExpr mn stack <$> bind'
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:35:23)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:36:34)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:37:07)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:37:10)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:37:17)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:37:46)
+
+
+
+
+
+
+
+
+
+
+Reloading...
+  /home/coot/repos/zephyr/src/Language/PureScript/DCE/Eval.hs
+
+
+
+
+
+
+
+
+
+All good (7 modules, at 20:37:59)
+
+
+
+
+
+
+
+
+
