@@ -71,13 +71,13 @@ lookupStack i  (ConsStack f fs) = case find (\((i', _), _) -> i == i') f of
 markDone :: Ident -> Stack -> Stack
 markDone _ EmptyStack = EmptyStack
 markDone i (ConsStack l ls) =
-  case foldr fn ([], False) l of
-    (l', True)  -> ConsStack l' ls
-    (l', False) -> ConsStack l' (markDone i ls)
+    case foldr fn ([], False) l of
+      (l', True)  -> ConsStack l' ls
+      (l', False) -> ConsStack l' (markDone i ls)
   where
-  fn x@(a@(i', _), _) (is, done)
-    | i == i'   = ((a, Done) : is, True)
-    | otherwise = (x         : is, done)
+    fn x@(a@(i', _), _) (is, done)
+      | i == i'   = ((a, Done) : is, True)
+      | otherwise = (x         : is, done)
 
 
 -- | Evaluate expressions in a module:
@@ -89,20 +89,32 @@ markDone i (ConsStack l ls) =
 -- * Semiring operations (@Unit@, @Unit@, @Unit@)
 --
 -- Keep stack of local identifiers from @let@ and @case@ expressions, ignoring
--- the ones that are comming from abstractions.
+-- the ones that are comming from abstractions (we are not reducing
+-- applications).
 --
-evaluate
-  :: [Module Ann]
-  -> [Module Ann]
-evaluate mods = map evalModule mods
-  where
-    evalModule :: Module Ann -> Module Ann
-    evalModule mod@Module{ moduleName, moduleDecls } =
-      mod { moduleDecls = map (onModuleBind moduleName) moduleDecls }
+evaluate :: [Module Ann] -> [Module Ann]
 
-    onModuleBind :: ModuleName -> Bind Ann -> Bind Ann
-    onModuleBind mn (NonRec a i e) = NonRec a i (rewriteExpr mn EmptyStack e)
-    onModuleBind mn (Rec binds')    = Rec $ map (fmap $ rewriteExpr mn (pushStack (map (\((_, i), e) -> (i, e)) binds') EmptyStack)) binds'
+evaluate mods = rewriteModule `map` mods
+  where
+
+    rewriteModule :: Module Ann -> Module Ann
+    rewriteModule mod@Module{ moduleName, moduleDecls } =
+      mod { moduleDecls = rewriteBind moduleName `map` moduleDecls }
+
+
+    rewriteBind :: ModuleName
+                -> Bind Ann -> Bind Ann
+    rewriteBind mn (NonRec a i e) =
+      NonRec a i (rewriteExpr mn EmptyStack e)
+
+    rewriteBind mn (Rec binds')   =
+      Rec [ rewriteExpr mn stack <$> bind'
+          | bind' <- binds' 
+          ]
+        where
+          stack = pushStack ((\((_, i), e) -> (i, e)) `map` binds')
+                            EmptyStack
+
 
     -- Push identifiers defined in binders onto the stack
     pushBinders :: [Expr Ann] -> [Binder Ann] -> Stack -> Stack
@@ -118,12 +130,14 @@ evaluate mods = map evalModule mods
     -- | Evaluate expressions, keep the stack of local identifiers. It does not
     -- track identifiers which are coming from abstractions, but `Let` and
     -- `Case` binders are pushed into / poped from the stack.
+    --
     -- * `Let` binds are added in `onBind` and poped from the stack
     --   when visiting `Let` expression.
     -- * `Case` binds are added in `pushBinders` and poped in the
     --  `everywhereOnValuesM` monadic action.
     --
-    rewriteExpr :: ModuleName -> Stack -> Expr Ann -> Expr Ann
+    rewriteExpr :: ModuleName -> Stack
+                -> Expr Ann -> Expr Ann
     rewriteExpr mn st c@(Case ann es cs) =
         let es'  = map (\e -> eval mods mn st e >>= getLiteral) es
             cs'  = getFirst $ foldMap (fndCase ((snd . fromJust) `map` es')) cs
@@ -162,8 +176,10 @@ evaluate mods = map evalModule mods
     fltBinders :: [Maybe (Literal (Expr Ann))]
                -> [Binder Ann]
                -> Bool
-    fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) = l1 `eqLit` l2 && fltBinders ts bs
-    fltBinders _              _                         = True
+    fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) =
+      l1 `eqLit` l2 && fltBinders ts bs
+    fltBinders _              _                         =
+      True
 
     fltGuards
       :: ModuleName
