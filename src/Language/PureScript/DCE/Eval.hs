@@ -1,27 +1,27 @@
--- |
--- Evaluation of PureScript's expressions used in dead call elimnation.
+-- | Evaluation of PureScript's expressions used in dead call elimnation.
+--
 module Language.PureScript.DCE.Eval
   ( evaluate ) where
 
-import Control.Monad
+import Control.Applicative ((<|>))
 import Control.Exception (Exception (..), throw)
+import Control.Monad
 import Control.Monad.Writer
+
 import Data.List (find)
-import Data.Maybe (fromMaybe, maybeToList)
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Monoid (First(..))
+import qualified Data.Text as T
+import qualified Language.PureScript.DCE.Constants as C
+import Prelude.Compat hiding (mod)
+import Safe (atMay)
+
 import Language.PureScript.AST.Literals
 import Language.PureScript.CoreFn
 --import Language.PureScript.DCE.Errors
 import Language.PureScript.DCE.Utils
 import Language.PureScript.Names
 import Language.PureScript.PSString
-
-import Control.Applicative ((<|>))
-import Data.Maybe (Maybe(..), fromJust, isJust)
-import Data.Monoid (First(..))
-import qualified Data.Text as T
-import qualified Language.PureScript.DCE.Constants as C
-import Prelude.Compat hiding (mod)
-import Safe (atMay)
 
 
 data EvalState
@@ -139,23 +139,30 @@ evaluate mods = rewriteModule `map` mods
     rewriteExpr :: ModuleName -> Stack
                 -> Expr Ann -> Expr Ann
     rewriteExpr mn st c@(Case ann es cs) =
-        let es'  = map (\e -> eval mods mn st e >>= getLiteral) es
-            cs'  = getFirst $ foldMap (fndCase ((snd . fromJust) `map` es')) cs
-        in if all isJust es'
-            then case cs' of
-              Nothing
-                -> c
-              Just (CaseAlternative bs (Right e))
-                | not (any binds bs)
-                -> rewriteExpr mn (pushStack [] st) e
-                | otherwise
-                -> Case ann es (maybeToList cs')
-              Just (CaseAlternative bs (Left gs))
+        -- purescript is a strict language, so we can take advantage of that
+        -- and evalute all the expressions now
+        let es' :: [Maybe (Expr Ann)]
+            es' = eval mods mn st `map` es
+        in case traverse (join . fmap fltLiteral) es' of
+          Nothing ->
+            -- remove cases whcich do not match
+            Case ann es
+              $ filter
+                  (fltBinders ((>>= fltLiteral) `map` es') . caseAlternativeBinders)
+                  cs
+          Just es'' ->
+            -- all es evaluated to a literal, we can try to find the matching
+            -- `CaseAlternative`
+            case foldMap (fndCase es'') cs of
+              First Nothing -> c
+              First (Just (CaseAlternative bs (Right e)))
+                -- we found a matching `CaseAlternative`, we can eliminate the case
+                -- expression
+                -> rewriteExpr mn (pushBinders es'' bs st) e
+              First (Just (CaseAlternative bs (Left gs)))
+                -- we found a matching `CaseAlternative` with guards; we can
+                -- simplify the case expression and the list of guards
                 -> Case ann es [CaseAlternative bs (Left (fltGuards mn (pushBinders es bs st) gs))]
-            else Case ann es $
-                  filter
-                    (fltBinders (fmap snd `map` es') . caseAlternativeBinders)
-                    cs
 
     rewriteExpr mn st (Let _ann bs e) = rewriteExpr mn (pushStack (concatMap unBind bs) st) e
 
@@ -173,13 +180,12 @@ evaluate mods = rewriteModule `map` mods
         Just l  -> l
         Nothing -> e
 
-    fltBinders :: [Maybe (Literal (Expr Ann))]
+    fltBinders :: [Maybe (Expr Ann)]
                -> [Binder Ann]
                -> Bool
-    fltBinders (Just l1 : ts) (LiteralBinder _ l2 : bs) =
+    fltBinders (Just (Literal _ l1) : ts) (LiteralBinder _ l2 : bs) =
       l1 `eqLit` l2 && fltBinders ts bs
-    fltBinders _              _                         =
-      True
+    fltBinders _ _ = True
 
     fltGuards
       :: ModuleName
@@ -196,36 +202,25 @@ evaluate mods = rewriteModule `map` mods
           -> fltGuards mn st rest
         _ -> guard' : fltGuards mn st rest
 
-    getLiteral :: Expr Ann -> Maybe (Ann, Literal (Expr Ann))
-    getLiteral (Literal ann l) = Just (ann, l)
-    getLiteral _               = Nothing
+    fltLiteral :: Expr Ann -> Maybe (Expr Ann)
+    fltLiteral e@Literal {} = Just e
+    fltLiteral _            = Nothing
 
-    fndCase :: [Literal (Expr Ann)] -> CaseAlternative Ann -> First (CaseAlternative Ann)
+    -- match a list of literal expressions against a case alternative
+    fndCase :: [Expr Ann] -> CaseAlternative Ann -> First (CaseAlternative Ann)
     fndCase as c =
-        if matches as (caseAlternativeBinders c)
+        if as `matches` caseAlternativeBinders c
           then First (Just c)
           else First Nothing
       where
-        matches :: [Literal (Expr Ann)] -> [Binder Ann] -> Bool
+        matches :: [Expr Ann] -> [Binder Ann] -> Bool
         matches [] [] = True
         matches [] _  = error "impossible happend: not matching case expressions and case alternatives"
         matches _ []  = error "impossible happend: not matching case expressions and case alternatives"
-        matches (t:ts) (LiteralBinder _ t' : bs) = t `eqLit` t' && matches ts bs
-        matches (t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
-        matches (_:ts) (_:bs) = matches ts bs
-
-    -- Does a binder binds?
-    binds :: Binder Ann -> Bool
-    binds (NullBinder _)                       = False
-    binds (LiteralBinder _ (NumericLiteral _)) = False
-    binds (LiteralBinder _ (StringLiteral _))  = False
-    binds (LiteralBinder _ (CharLiteral _))    = False
-    binds (LiteralBinder _ (BooleanLiteral _)) = False
-    binds (LiteralBinder _ (ArrayLiteral bs))  = any binds bs
-    binds (LiteralBinder _ (ObjectLiteral bs)) = any (binds . snd) bs
-    binds (VarBinder _ _)                      = True
-    binds (ConstructorBinder _ _ _ bs)         = any binds bs
-    binds NamedBinder{}                        = True
+        matches (Literal _ t:ts) (LiteralBinder _ t' : bs) = t `eqLit` t' && matches ts bs
+        matches (Literal _ t:ts) (NamedBinder _ _ (LiteralBinder _ t') : bs) = t `eqLit` t' && matches ts bs
+        matches (Literal {}:ts) (_:bs) = matches ts bs
+        matches (_:_) (_:_) = False
 
 
 -- | Evaluate an expresion
