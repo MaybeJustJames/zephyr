@@ -1,4 +1,4 @@
-module Main where
+module Main (main) where
 
 import           Command.DCE
 import           Data.Monoid ((<>))
@@ -8,12 +8,15 @@ import qualified Paths_zephyr as Paths
 import           System.Environment (getArgs)
 import qualified System.IO as IO
 
+import           Command.Options
+
 
 main :: IO ()
 main = do
   IO.hSetEncoding IO.stdout IO.utf8
   IO.hSetEncoding IO.stderr IO.utf8
-  let pinfo = Opts.info (versionOpt <*> Opts.helper <*> dceOptions) (Opts.progDesc "tree-shaking breeze for PureScript")
+  let pinfo = Opts.info (versionOpt <*> Opts.helper <*> dceOptions)
+                        (Opts.progDesc "tree-shaking breeze for PureScript")
   getArgs
     >>= Opts.handleParseResult . execParserPure pinfo
     >>= runDCECommand

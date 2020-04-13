@@ -78,7 +78,7 @@ executable zephyr
   main-is: Main.hs
   other-modules:
     Command.DCE
-    Command.DCEOptions
+    Command.Options
     Paths_zephyr
   default-extensions:
     DataKinds
