@@ -123,10 +123,11 @@ codegenTargets = Opts.option targetParser $
       )
 
 dceEvalOpt :: Opts.Parser Bool
-dceEvalOpt = Opts.flag True False $
-     Opts.long "no-eval"
+dceEvalOpt = Opts.switch $
+     Opts.short 'e'
+  <> Opts.long "evaluate"
   <> Opts.showDefault
-  <> Opts.help "do not evaluate"
+  <> Opts.help "rewrite using simple evaluation"
 
 targets :: M.Map String P.CodegenTarget
 targets = M.fromList
