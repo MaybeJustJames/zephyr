@@ -55,7 +55,12 @@ import           Language.PureScript.DCE ( DCEError (..)
 import qualified Language.PureScript.DCE as DCE
 
 
-readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
+readInput :: [FilePath]
+          -> IO [Either
+                  (FilePath, JSONPath, String)
+                  (Version, CoreFn.Module CoreFn.Ann)
+                ]
+
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> BSL.readFile f)
   where
   decodeCoreFn :: BSL.ByteString -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
@@ -77,6 +82,7 @@ printWarningsAndErrors
     -> P.MultipleErrors          -- ^ warnings
     -> Either P.MultipleErrors a -- ^ errors
     -> IO ()
+
 printWarningsAndErrors verbose False warnings errors = do
   pwd <- getCurrentDirectory
   cc <- bool Nothing (Just P.defaultCodeColor) <$> ANSI.hSupportsANSI stderr
@@ -88,6 +94,7 @@ printWarningsAndErrors verbose False warnings errors = do
       hPutStrLn stderr (P.prettyPrintMultipleErrors ppeOpts errs)
       exitFailure
     Right _ -> return ()
+
 printWarningsAndErrors verbose True warnings errors = do
   hPutStrLn stderr . BU8.toString . A.encode $
     P.JSONResult (P.toJSONErrors verbose P.Warning warnings)
@@ -95,13 +102,21 @@ printWarningsAndErrors verbose True warnings errors = do
   either (const exitFailure) (const (return ())) errors
 
 
+-- | Application exception
+--
 data DCEAppError
-  = ParseErrors [Text]
-  | InputNotDirectory FilePath
-  | NoInputs FilePath
-  | CompilationError (DCEError 'Error)
+  = ParseErrors       ![Text]
+  -- ^ parser errors
+  | InputNotDirectory !FilePath
+  -- ^ input directory does not exists (or is not a directory)
+  | NoInputs          !FilePath
+  -- ^ no input files
+  | DCEAppError  !(DCEError 'Error)
+  -- ^ PureScript errors
 
 
+-- | Render 'DCEAppError' as 'Text'
+--
 formatDCEAppError :: Options -> FilePath -> DCEAppError -> Text
 formatDCEAppError opts _ (ParseErrors errs) =
   let errs' =
@@ -126,10 +141,13 @@ formatDCEAppError _ _ (InputNotDirectory path)
         (stext%": Directory "%string%" does not exists.")
         (DCE.colorText DCE.errorColor "Error")
         (DCE.colorString DCE.codeColor path)
-formatDCEAppError _ relPath (CompilationError err)
+formatDCEAppError _ relPath (DCEAppError err)
   = T.pack $ DCE.displayDCEError relPath err
 
 
+-- | Given list of modules and list of entry points, find qualilfied names of
+-- roots.
+--
 getEntryPoints
   :: [CoreFn.Module CoreFn.Ann]
   -> [EntryPoint]
@@ -188,18 +206,22 @@ dceCommand Options { optEntryPoints
     when (isNothing mPursVer) $
       throwError (NoInputs optInputDir)
 
-    let (notFound, entryPoints) = partitionEithers $ getEntryPoints (fmap snd . rights $ inpts) optEntryPoints
+    let (notFound, entryPoints) =
+          partitionEithers
+            (getEntryPoints
+              (fmap snd . rights $ inpts)
+              optEntryPoints)
 
     when (not $ null notFound) $
       case filter DCE.isEntryParseError notFound of
-        []   -> throwError (CompilationError $ EntryPointsNotFound notFound)
+        []   -> throwError (DCEAppError $ EntryPointsNotFound notFound)
         perrs ->
           let fn (EntryParseError s) acc = s : acc
               fn _                   acc = acc
-          in throwError (CompilationError $ EntryPointsNotParsed (foldr fn [] perrs))
+          in throwError (DCEAppError $ EntryPointsNotParsed (foldr fn [] perrs))
 
     when (null $ entryPoints) $
-      throwError (CompilationError $ NoEntryPoint)
+      throwError (DCEAppError NoEntryPoint)
 
     -- run `evaluate` and `runDeadCodeElimination` on `CoreFn` representation
     let mods = if optEvaluate
@@ -212,7 +234,11 @@ dceCommand Options { optEntryPoints
 
     -- relPath <- liftIO getCurrentDirectory
     -- liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
-    let filePathMap = M.fromList $ map (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m)) mods
+    let filePathMap =
+          M.fromList
+            (map
+              (\m -> (CoreFn.moduleName m, Right $ CoreFn.modulePath m))
+              mods)
     foreigns <- P.inferForeignModules filePathMap
     let makeActions = (P.buildMakeActions optOutputDir filePathMap foreigns optUsePrefix)
           -- run `runForeignModuleDeadCodeElimination` in `ffiCodeGen`
@@ -232,6 +258,7 @@ dceCommand Options { optEntryPoints
                         in BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
                       Right _ -> return ()
           }
+
     (makeErrors, makeWarnings) <-
         liftIO
         $ P.runMake optPureScriptOptions
@@ -242,12 +269,13 @@ dceCommand Options { optEntryPoints
                         (Docs.Module (CoreFn.moduleName m) Nothing [] [])
                         (moduleToExternsFile m))
             mods
+
     when optForeign $
       traverse_ (liftIO . P.runMake optPureScriptOptions . P.ffiCodegen makeActions) mods
 
-    -- copy extern files
-    -- we do not have access to data to regenerate extern files (they relay on
-    -- more information than is present in `CoreFn.Module`).
+    -- copy extern files; We do not have access to data to regenerate extern
+    -- files (they relay on more information than is present in 'CoreFn.Module'
+    -- represenation).
     for_ mods $ \m -> lift $ do
       let mn = CoreFn.moduleName m
       copyExterns mn "cbor" <|> do
@@ -255,11 +283,15 @@ dceCommand Options { optEntryPoints
         -- on a project using purescript-0.13.6 we need to remove it.
         removeFile (dceOutputDir </> (T.unpack $ P.runModuleName mn) </> "externs.cbor")
         copyExterns mn "json"
-    liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors
+    liftIO $
+      printWarningsAndErrors
+        (P.optionsVerboseErrors optPureScriptOptions)
+        optJsonErrors
         (suppressFFIErrors makeWarnings)
         (either (Left . suppressFFIErrors) Right makeErrors)
-    return ()
+
   where
+
     formatError :: (FilePath, JSONPath, String) -> Text
     formatError (f, p, err) =
       if optVerbose
@@ -273,7 +305,7 @@ dceCommand Options { optEntryPoints
       BSL.writeFile (dceOutputDir </> mn' </> "externs" -<.> extension) externs
 
     -- a hack: purescript codegen function reads FFI from disk, and checks
-    -- against it
+    -- against it.
     suppressFFIErrors :: P.MultipleErrors -> P.MultipleErrors
     suppressFFIErrors (P.MultipleErrors errs) = P.MultipleErrors $ filter fn errs
       where
