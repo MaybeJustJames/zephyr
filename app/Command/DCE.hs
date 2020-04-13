@@ -25,15 +25,13 @@ import qualified Data.ByteString.Lazy.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (Either, lefts, rights, partitionEithers)
 import           Data.Foldable (for_, traverse_)
-import           Data.List (intercalate, null)
+import           Data.List (null)
 import qualified Data.Map as M
 import           Data.Maybe (isNothing, listToMaybe)
 import           Data.Monoid ((<>))
-import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as TE
-import           Data.Traversable (for)
 import           Data.Version (Version)
 import           Formatting (sformat, string, stext, (%))
 
@@ -43,7 +41,6 @@ import qualified Language.PureScript as P
 import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
 import qualified Language.PureScript.Errors.JSON as P
-import qualified Options.Applicative as Opts
 import qualified System.Console.ANSI as ANSI
 import           System.Directory (doesDirectoryExist, getCurrentDirectory, removeFile)
 import           System.Exit (exitFailure, exitSuccess)
@@ -59,128 +56,6 @@ import           Language.PureScript.DCE ( DCEError (..)
                                          )
 import qualified Language.PureScript.DCE as DCE
 
-
-inputDirectoryOpt :: Opts.Parser FilePath
-inputDirectoryOpt = Opts.strOption $
-     Opts.short 'i'
-  <> Opts.long "input-directory"
-  <> Opts.value "output"
-  <> Opts.showDefault
-  <> Opts.help "Input directory (purs output directory)."
-
-outputDirectoryOpt :: Opts.Parser FilePath
-outputDirectoryOpt = Opts.strOption $
-     Opts.short 'o'
-  <> Opts.long "dce-output"
-  <> Opts.value "dce-output"
-  <> Opts.showDefault
-  <> Opts.help "Output directory."
-
-entryPointOpt :: Opts.Parser EntryPoint
-entryPointOpt = Opts.argument (Opts.auto >>= checkIfQualified) $
-     Opts.metavar "entry-point"
-  <> Opts.help "Qualified identifier or a module name (it may be prefixed with `ident:` or `module:`). All code which is not a transitive dependency of an entry point (or any exported identifier from a give module) will be removed. You can pass multiple entry points."
-  where
-  checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
-    "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
-  checkIfQualified e = return e
-
-verboseOutputOpt :: Opts.Parser Bool
-verboseOutputOpt = Opts.switch $
-     Opts.short 'v'
-  <> Opts.long "verbose"
-  <> Opts.showDefault
-  <> Opts.help "Verbose CoreFn parser errors."
-
-dceForeignOpt :: Opts.Parser Bool
-dceForeignOpt = Opts.switch $
-     Opts.short 'f'
-  <> Opts.long "dce-foreign"
-  <> Opts.showDefault
-  <> Opts.help "dce foriegn modules"
-
-comments :: Opts.Parser Bool
-comments = Opts.switch $
-     Opts.short 'c'
-  <> Opts.long "comments"
-  <> Opts.help "Include comments in the generated code"
-
-verboseErrors :: Opts.Parser Bool
-verboseErrors = Opts.switch $
-     Opts.short 'v'
-  <> Opts.long "verbose-errors"
-  <> Opts.help "Display verbose error messages"
-
-codegenTargets :: Opts.Parser [P.CodegenTarget]
-codegenTargets = Opts.option targetParser $
-     Opts.short 'g'
-  <> Opts.long "codegen"
-  <> Opts.value [P.JS]
-  <> Opts.help
-      ( "Specifies comma-separated codegen targets to include. "
-      <> targetsMessage
-      <> " The default target is 'js', but if this option is used only the targets specified will be used."
-      )
-
-dceEvalOpt :: Opts.Parser Bool
-dceEvalOpt = Opts.switch $
-     Opts.short 'e'
-  <> Opts.long "evaluate"
-  <> Opts.showDefault
-  <> Opts.help "rewrite using simple evaluation"
-
-targets :: M.Map String P.CodegenTarget
-targets = M.fromList
-  [ ("js", P.JS)
-  , ("sourcemaps", P.JSSourceMap)
-  , ("corefn", P.CoreFn)
-  ]
-
-targetsMessage :: String
-targetsMessage = "Accepted codegen targets are '" <> intercalate "', '" (M.keys targets) <> "'."
-
-targetParser :: Opts.ReadM [P.CodegenTarget]
-targetParser =
-  Opts.str >>= \s ->
-    for (T.split (== ',') s)
-      $ maybe (Opts.readerError targetsMessage) pure
-      . flip M.lookup targets
-      . T.unpack
-      . T.strip
-
-noPrefix :: Opts.Parser Bool
-noPrefix = Opts.switch $
-     Opts.short 'p'
-  <> Opts.long "no-prefix"
-  <> Opts.help "Do not include comment header"
-
-jsonErrors :: Opts.Parser Bool
-jsonErrors = Opts.switch $
-     Opts.long "json-errors"
-  <> Opts.help "Print errors to stderr as JSON"
-
-pureScriptOptions :: Opts.Parser P.Options
-pureScriptOptions =
-  P.Options
-    <$> verboseErrors
-    <*> (not <$> comments)
-    <*> (handleTargets <$> codegenTargets)
-  where
-    -- Ensure that the JS target is included if sourcemaps are
-    handleTargets :: [P.CodegenTarget] -> S.Set P.CodegenTarget
-    handleTargets ts = S.fromList (if P.JSSourceMap `elem` ts then P.JS : ts else ts)
-
-dceOptions :: Opts.Parser DCEOptions
-dceOptions = DCEOptions
-  <$> Opts.many entryPointOpt
-  <*> inputDirectoryOpt
-  <*> outputDirectoryOpt
-  <*> verboseOutputOpt
-  <*> dceForeignOpt
-  <*> pureScriptOptions
-  <*> (not <$> noPrefix)
-  <*> jsonErrors
-  <*> dceEvalOpt
 
 readInput :: [FilePath] -> IO [Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)]
 readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> BSL.readFile f)
