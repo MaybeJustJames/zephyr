@@ -3,7 +3,7 @@
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
 --
 module Command.Run
-  ( runDCECommand
+  ( runZephyr
   ) where
 
 import           Control.Applicative ((<|>))
@@ -326,10 +326,10 @@ dceCommand Options { optEntryPoints
       }
 
 
-runDCECommand
+runZephyr
   :: Options
   -> IO ()
-runDCECommand opts = do
+runZephyr opts = do
   res <- runExceptT $ dceCommand opts
   relPath <- getCurrentDirectory
   case res of

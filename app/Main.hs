@@ -19,7 +19,7 @@ main = do
                         (Opts.progDesc "tree-shaking breeze for PureScript")
   getArgs
     >>= Opts.handleParseResult . execParserPure pinfo
-    >>= runDCECommand
+    >>= runZephyr
   where
     execParserPure :: Opts.ParserInfo a -> [String] -> Opts.ParserResult a
     execParserPure pinfo [] = Opts.Failure $
