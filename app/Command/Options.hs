@@ -1,6 +1,9 @@
--- |
--- Helper module for `zephyr`.
-module Command.DCEOptions where
+-- | `zephyr` command line option parser
+--
+module Command.Options
+  ( Options (..)
+  , parseOptions
+  )  where
 
 import           Data.List (intercalate)
 import qualified Data.Map as M
@@ -13,16 +16,28 @@ import           Language.PureScript.DCE.Errors (EntryPoint (..))
 
 import qualified Options.Applicative as Opts
 
-data DCEOptions = DCEOptions
-  { dceEntryPoints       :: [EntryPoint]
-  , dceInputDir          :: FilePath
-  , dceOutputDir         :: FilePath
-  , dceVerbose           :: Bool
-  , dceForeign           :: Bool
-  , dcePureScriptOptions :: P.Options
-  , dceUsePrefix         :: Bool
-  , dceJsonErrors        :: Bool
-  , dceDoEval            :: Bool
+
+-- | @zephyr@ options
+--
+data Options = Options
+  { optEntryPoints       :: [EntryPoint]
+  -- ^ List of entry points.
+  , optInputDir          :: FilePath
+  -- ^ Input directory, default: @outout@.
+  , optOutputDir         :: FilePath
+  -- ^ Output directory, default: @dce-output@.
+  , optVerbose           :: Bool
+  -- ^ Verbose output.
+  , optForeign           :: Bool
+  -- ^ Dead code eliminate foreign javascript module.
+  , optPureScriptOptions :: P.Options
+  -- ^ PureScription options
+  , optUsePrefix         :: Bool
+  , optJsonErrors        :: Bool
+  -- ^ Print errors in `JSON` format; default 'False'.
+  , optEvaluate          :: Bool
+  -- ^ Rewirite using an evaluation; it can reduce literal expressions; default
+  -- 'False'.
   }
 
 
@@ -136,8 +151,8 @@ pureScriptOptions =
     handleTargets :: [P.CodegenTarget] -> S.Set P.CodegenTarget
     handleTargets ts = S.fromList (if P.JSSourceMap `elem` ts then P.JS : ts else ts)
 
-dceOptions :: Opts.Parser DCEOptions
-dceOptions = DCEOptions
+parseOptions :: Opts.Parser Options
+parseOptions = Options
   <$> Opts.many entryPointOpt
   <*> inputDirectoryOpt
   <*> outputDirectoryOpt
