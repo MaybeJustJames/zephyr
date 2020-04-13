@@ -2,7 +2,7 @@
 
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
 --
-module Command.DCE
+module Command.Run
   ( runDCECommand
   ) where
 
