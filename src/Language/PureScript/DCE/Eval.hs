@@ -164,7 +164,10 @@ evaluate mods = rewriteModule `map` mods
                 -- simplify the case expression and the list of guards
                 -> Case ann es [CaseAlternative bs (Left (fltGuards mn (pushBinders es bs st) gs))]
 
-    rewriteExpr mn st (Let _ann bs e) = rewriteExpr mn (pushStack (concatMap unBind bs) st) e
+    -- todo: evaluate bindings
+    rewriteExpr mn st (Let ann bs e) =
+       Let ann bs
+         (rewriteExpr mn (pushStack (concatMap unBind bs) st) e)
 
     rewriteExpr mn st e@Var{} =
       case eval mods mn st e of
@@ -237,6 +240,8 @@ eval :: [Module Ann]
      -> Stack
      -> Expr Ann
      -> Maybe (Expr Ann)
+
+-- eval _    _  _  _  = Nothing -- TODO: testing without evaluation
 
 eval mods mn st (Var _ (Qualified Nothing i)) = 
     case lookupStack i st of

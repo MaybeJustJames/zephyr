@@ -271,7 +271,11 @@ runZephyr coreLibTestRepo coreLibTestEntries zephyrOptions = do
   outputDirExists <- lift $ doesDirectoryExist "dce-output"
   when outputDirExists $
     lift $ removeDirectoryRecursive "dce-output"
-  (ecZephyr, _, errZephyr) <- lift $ readProcessWithExitCode test_prg (test_args ++ T.unpack `map` fromMaybe ["-f"] zephyrOptions ++ T.unpack `map` coreLibTestEntries) ""
+  (ecZephyr, _, errZephyr) <-
+    lift $
+      readProcessWithExitCode test_prg
+        (test_args ++ T.unpack `map` fromMaybe ["-f"] zephyrOptions ++ T.unpack `map` coreLibTestEntries)
+        ""
   when (ecZephyr /= ExitSuccess) (throwError $ ZephyrError coreLibTestRepo ecZephyr errZephyr)
   
 

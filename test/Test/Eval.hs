@@ -168,7 +168,7 @@ spec =
                       (Right (Literal ann (CharLiteral 'f')))
                   ])
       case dceEvalExpr e of
-        Literal _ (CharLiteral 't') -> return ()
+        Let _ _ (Literal _ (CharLiteral 't')) -> return ()
         x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
         -- Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -281,7 +281,7 @@ spec =
                   (Let ann [ NonRec ann (Ident "a") (Literal ann (CharLiteral 'b')) ]
                     (Var ann (Qualified Nothing (Ident "a"))))
         case dceEvalExpr e of
-          Literal _ (CharLiteral 'b') -> return ()
+          Let _ _ (Let _ _ (Literal _ (CharLiteral 'b'))) -> return ()
           x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
           -- Left err -> assertFailure $ "compilation error: " ++ show err
 
