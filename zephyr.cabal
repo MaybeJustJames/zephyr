@@ -77,7 +77,7 @@ executable zephyr
   hs-source-dirs: app
   main-is: Main.hs
   other-modules:
-    Command.DCE
+    Command.Run
     Command.Options
     Paths_zephyr
   default-extensions:

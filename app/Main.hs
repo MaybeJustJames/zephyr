@@ -1,6 +1,5 @@
 module Main (main) where
 
-import           Command.DCE
 import           Data.Monoid ((<>))
 import           Data.Version (showVersion)
 import qualified Options.Applicative as Opts
@@ -8,6 +7,7 @@ import qualified Paths_zephyr as Paths
 import           System.Environment (getArgs)
 import qualified System.IO as IO
 
+import           Command.Run
 import           Command.Options
 
 
