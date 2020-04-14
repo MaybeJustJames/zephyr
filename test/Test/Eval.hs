@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 
-module Test.Eval ( main ) where
+module Test.Eval (spec) where
 
 import Prelude ()
 import Prelude.Compat
@@ -17,12 +17,7 @@ import Language.PureScript.DCE.Utils (showExpr)
 
 import Test.Hspec
 import Test.HUnit (assertFailure)
--- import Test.QuickCheck
 
--- import Test.Generators hiding (ann)
-
-main :: IO ()
-main = hspec spec
 
 ss :: SourceSpan
 ss = SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0)
