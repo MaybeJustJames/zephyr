@@ -1,4 +1,4 @@
-module Test.CoreFn ( main )  where
+module Test.CoreFn (spec)  where
 
 import Prelude ()
 import Prelude.Compat
@@ -18,8 +18,6 @@ import Test.QuickCheck
 
 import Test.Generators hiding (ann)
 
-main :: IO ()
-main = hspec spec
 
 getNames :: Bind a -> [Ident]
 getNames (NonRec _ i _) = [i]
