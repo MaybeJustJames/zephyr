@@ -58,7 +58,7 @@ instance Read EntryPoint where
           Just (as, a)
             | not (null as)
             , True <- not (T.null a)
-            -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ ProperName <$> as)), "")]
+            -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ T.intercalate "." as)), "")]
           _ -> [(EntryParseError s, "")]
       "module"
         -> case unsnoc (T.splitOn "." (T.pack $ drop (idx + 1) s)) of
@@ -66,7 +66,7 @@ instance Read EntryPoint where
             | not (null as)
             , True <- not (T.null a)
             , True <- isUpper (T.head a)
-            -> [(EntryModule $ ModuleName $ ProperName <$> as ++ [a], "")]
+            -> [(EntryModule $ ModuleName $ T.intercalate "." (as ++ [a]), "")]
           _ -> [(EntryParseError s, "")]
       _ -> [(EntryParseError s, "")]
   readsPrec _ s
@@ -75,9 +75,9 @@ instance Read EntryPoint where
         | not (null as)
         , True <- not (T.null a)
         , True <- isLower (T.head a)
-          -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ ProperName <$> as)), "")]
+          -> [(EntryPoint (mkQualified (Ident a) (ModuleName $ T.intercalate "." as)), "")]
         | True <- not (T.null a)
-          -> [(EntryModule $ ModuleName $ ProperName <$> as ++ [a], "")]
+          -> [(EntryModule $ ModuleName $ T.intercalate "." (as ++ [a]), "")]
         | otherwise
         -> [(EntryParseError s, "")]
       Nothing -> [(EntryParseError s, "")]

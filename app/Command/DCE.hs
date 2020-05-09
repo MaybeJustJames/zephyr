@@ -5,6 +5,7 @@ module Command.DCE
   , entryPointOpt
   ) where
 
+import           Control.Applicative ((<|>))
 import           Control.Monad
 import           Control.Monad.Error.Class (MonadError(..))
 import           Control.Monad.IO.Class (MonadIO(..))
@@ -46,7 +47,7 @@ import qualified Options.Applicative as Opts
 import qualified System.Console.ANSI as ANSI
 import           System.Directory (doesDirectoryExist, getCurrentDirectory)
 import           System.Exit (exitFailure, exitSuccess)
-import           System.FilePath ((</>))
+import           System.FilePath ((</>), (-<.>))
 import           System.FilePath.Glob (compile, globDir1)
 import           System.IO (hPutStrLn, stderr)
 
@@ -249,7 +250,7 @@ getEntryPoints
 getEntryPoints mods = go []
   where
   go acc [] = acc
-  go acc ((EntryPoint i) : eps)  = 
+  go acc ((EntryPoint i) : eps)  =
     if i `fnd` mods
       then go (Right i : acc) eps
       else go (Left (EntryPoint i)  : acc) eps
@@ -350,9 +351,8 @@ dceCommand DCEOptions {..} = do
     -- we do not have access to data to regenerate extern files (they relay on
     -- more information than is present in `CoreFn.Module`).
     for_ mods $ \m -> lift $ do
-      let mn = P.runModuleName $ CoreFn.moduleName m
-      exts <- BSL.readFile (dceInputDir </> T.unpack mn </> "externs.json")
-      BSL.writeFile (dceOutputDir </> T.unpack mn </> "externs.json") exts
+      let mn = CoreFn.moduleName m
+      copyExterns mn "cbor" <|> copyExterns mn "json"
     liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors
         (suppressFFIErrors makeWarnings)
         (either (Left . suppressFFIErrors) Right makeErrors)
@@ -363,6 +363,11 @@ dceCommand DCEOptions {..} = do
       if dceVerbose
         then sformat (string%":\n    "%string) f (A.formatError p err)
         else T.pack f
+    copyExterns :: P.ModuleName -> String -> IO ()
+    copyExterns mn extension = do
+      let mn' = T.unpack . P.runModuleName $ mn
+      externs <- BSL.readFile (dceInputDir </> mn' </> "externs" -<.> extension)
+      BSL.writeFile (dceOutputDir </> mn' </> "externs" -<.> extension) externs
 
     -- a hack: purescript codegen function reads FFI from disk, and checks
     -- against it

@@ -7,46 +7,46 @@ import Prelude hiding (maybe)
 import Language.PureScript.Names
 
 unit :: ModuleName
-unit =  ModuleName [ProperName "Data", ProperName "Unit"] 
+unit =  ModuleName "Data.Unit"
 
 pattern Unit :: ModuleName
-pattern Unit = ModuleName [ProperName "Data", ProperName "Unit"]
+pattern Unit = ModuleName "Data.Unit"
 
 semigroup :: ModuleName
-semigroup = ModuleName [ProperName "Data", ProperName "Semigroup"] 
+semigroup = ModuleName "Data.Semigroup"
 
 maybeMod :: ModuleName
-maybeMod = ModuleName [ProperName "Data", ProperName "Maybe"] 
+maybeMod = ModuleName "Data.Maybe"
 
 pattern Semigroup :: ModuleName
-pattern Semigroup = ModuleName [ProperName "Data", ProperName "Semigroup"] 
+pattern Semigroup = ModuleName "Data.Semigroup"
 
 semiring :: ModuleName
-semiring = ModuleName [ProperName "Data", ProperName "Semiring"]
+semiring = ModuleName "Data.Semiring"
 
 pattern Ring :: ModuleName
-pattern Ring = ModuleName [ProperName "Data", ProperName "Ring"]
+pattern Ring = ModuleName "Data.Ring"
 
 ring :: ModuleName
-ring = ModuleName [ProperName "Data", ProperName "Ring"]
+ring = ModuleName "Data.Ring"
 
 pattern Semiring :: ModuleName
-pattern Semiring = ModuleName [ProperName "Data", ProperName "Semiring"]
+pattern Semiring = ModuleName "Data.Semiring"
 
 pattern HeytingAlgebra :: ModuleName
-pattern HeytingAlgebra = ModuleName [ProperName "Data", ProperName "HeytingAlgebra"]
+pattern HeytingAlgebra = ModuleName "Data.HeytingAlgebra"
 
 heytingAlgebra :: ModuleName
-heytingAlgebra = ModuleName [ProperName "Data", ProperName "HeytingAlgebra"]
+heytingAlgebra = ModuleName "Data.HeytingAlgebra"
 
 pattern UnsafeCoerce :: ModuleName
-pattern UnsafeCoerce = ModuleName [ProperName "Unsafe", ProperName "Coerce"]
+pattern UnsafeCoerce = ModuleName "Unsafe.Coerce"
 
 unsafeCoerce :: ModuleName
-unsafeCoerce = ModuleName [ProperName "Unsafe", ProperName "Coerce"]
+unsafeCoerce = ModuleName "Unsafe.Coerce"
 
 eqMod :: ModuleName
-eqMod = ModuleName [ProperName "Data", ProperName "Eq"]
+eqMod = ModuleName "Data.Eq"
 
 pattern Eq :: ModuleName
-pattern Eq = ModuleName [ProperName "Data", ProperName "Eq"]
+pattern Eq = ModuleName "Data.Eq"

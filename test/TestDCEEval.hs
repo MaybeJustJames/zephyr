@@ -39,10 +39,10 @@ eqBoolean :: Qualified Ident
 eqBoolean = Qualified (Just eqModName) (Ident "eqBoolean")
 
 eqModName :: ModuleName
-eqModName = ModuleName [ProperName "Data", ProperName "Eq"]
-          
+eqModName = ModuleName "Data.Eq"
+
 mn :: ModuleName
-mn = ModuleName [ProperName "Test"]
+mn = ModuleName "Test"
 
 mp :: FilePath
 mp = "src/Test.purs"
@@ -60,7 +60,7 @@ dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod , eqMod , booleanMod ,
     ]
   eqMod = Module ss [] C.eqMod "" [] []
     [ Ident "refEq" ]
-    [ NonRec ann (Ident "eq")  
+    [ NonRec ann (Ident "eq")
         (Abs ann (Ident "dictEq")
           (Abs ann (Ident "x")
             (Abs ann (Ident "y")
@@ -73,9 +73,9 @@ dceEvalExpr' e mods = case runWriterT $ dceEval ([testMod , eqMod , booleanMod ,
         (Abs ann (Ident "eq")
           (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified Nothing (Ident "eq")))])))
     ]
-  booleanMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Boolean"]) "" [] [] []
+  booleanMod = Module ss [] (ModuleName "Data.Boolean") "" [] [] []
     [ NonRec ann (Ident "otherwise") (Literal ann (BooleanLiteral True)) ]
-  arrayMod = Module ss [] (ModuleName [ProperName "Data", ProperName "Array"]) ""
+  arrayMod = Module ss [] (ModuleName "Data.Array") ""
     [] [] []
     [ NonRec ann (Ident "index")
         (Abs ann (Ident "as")
@@ -93,7 +93,7 @@ dceEvalExpr :: Expr Ann -> Either (DCEError 'Error) (Expr Ann)
 dceEvalExpr e = dceEvalExpr' e []
 
 prop_eval :: PSExpr Ann -> Property
-prop_eval (PSExpr g) = 
+prop_eval (PSExpr g) =
   let d  = exprDepth g
       g' = dceEvalExpr g
 
@@ -212,7 +212,7 @@ spec =
                         (Var ann (Qualified Nothing (Ident "x"))))
                       (Literal ann (BooleanLiteral True))
                     , Literal ann (CharLiteral 't'))
-                  , ( Var ann (Qualified (Just (ModuleName [ProperName "Data", ProperName "Boolean"])) (Ident "otherwise"))
+                  , ( Var ann (Qualified (Just (ModuleName "Data.Boolean")) (Ident "otherwise"))
                     , (Literal ann (CharLiteral 'f'))
                     )
                   ])
@@ -231,7 +231,7 @@ spec =
     specify "should evaluate exported literal" $ do
       let um :: Module Ann
           um = Module ss []
-            (ModuleName [ProperName "Utils"])
+            (ModuleName "Utils")
             "src/Utils.purs"
             []
             [Ident "isProduction"]
@@ -239,7 +239,7 @@ spec =
             [NonRec ann (Ident "isProduction") (Literal ann (BooleanLiteral True))]
           e :: Expr Ann
           e = Case ann
-            [ Var ann (Qualified (Just (ModuleName [ProperName "Utils"])) (Ident "isProduction"))]
+            [ Var ann (Qualified (Just (ModuleName "Utils")) (Ident "isProduction"))]
             [ CaseAlternative [LiteralBinder ann (BooleanLiteral True)] (Right (Literal ann (CharLiteral 't')))
             , CaseAlternative [LiteralBinder ann (BooleanLiteral False)] (Right (Literal ann (CharLiteral 'f')))
             ]
@@ -247,7 +247,7 @@ spec =
           mm = Module
             ss
             []
-            (ModuleName [ProperName "Main"])
+            (ModuleName "Main")
             "src/Main.purs"
             []
             []
@@ -270,11 +270,11 @@ spec =
       let e :: Expr Ann
           e = (App ann
                 (App ann
-                  (Var ann (Qualified (Just (ModuleName [ProperName "Data", ProperName "Array"])) (Ident "index")))
+                  (Var ann (Qualified (Just (ModuleName "Data.Array")) (Ident "index")))
                   (Literal ann (ArrayLiteral [Literal ann (CharLiteral 't')])))
                 (Literal ann (NumericLiteral (Left 0))))
       case dceEvalExpr e of
-        Right (App _ (Var _ (Qualified (Just (ModuleName [ProperName "Data", ProperName "Maybe"])) (Ident "Just"))) (Literal _ (CharLiteral 't'))) -> return ()
+        Right (App _ (Var _ (Qualified (Just (ModuleName "Data.Maybe")) (Ident "Just"))) (Literal _ (CharLiteral 't'))) -> return ()
         Right x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
         Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -305,7 +305,7 @@ spec =
           Left err -> assertFailure $ "compilation error: " ++ show err
 
     context "Var inlining" $ do
-      let oModName = ModuleName [ProperName "Other"]
+      let oModName = ModuleName "Other"
           oMod = Module ss [] oModName "" [] [] []
             [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just C.eqMod) (Ident "eq"))) ])
             , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just C.eqMod) (Ident "eq")) ])

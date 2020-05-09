@@ -6,7 +6,7 @@ import Data.List (foldl')
 import Data.String (IsString (..))
 import Test.QuickCheck
 
-import Language.PureScript.Names (Ident (..), ModuleName (..), ProperName (..), Qualified (..), moduleNameFromString)
+import Language.PureScript.Names (Ident (..), ModuleName (..), ProperName (..), Qualified (..))
 import Language.PureScript.PSString (PSString)
 import Language.PureScript.AST.SourcePos (SourceSpan (..), SourcePos (..))
 import Language.PureScript.AST (Literal (..))
@@ -38,9 +38,9 @@ genUnusedIdent = elements unusedIdents
 
 genModuleName :: Gen ModuleName
 genModuleName = elements
-  [ moduleNameFromString "Data.Eq"
-  , moduleNameFromString "Data.Array"
-  , moduleNameFromString "Data.Maybe"
+  [ ModuleName "Data.Eq"
+  , ModuleName "Data.Array"
+  , ModuleName "Data.Maybe"
   , C.semigroup
   , C.unsafeCoerce
   , C.unit
@@ -108,7 +108,7 @@ genExpr = sized go
       ]
 
 genCaseAlternative :: Gen (CaseAlternative Ann)
-genCaseAlternative = sized $ \n -> 
+genCaseAlternative = sized $ \n ->
   CaseAlternative <$> vectorOf n genBinder <*> genCaseAlternativeResult n
   where
   genCaseAlternativeResult :: Int -> Gen (Either [(Guard Ann, Expr Ann)] (Expr Ann))
@@ -169,7 +169,7 @@ prop_binderDistribution (PSBinder c) =
 
   depth :: Binder a -> Int
   depth NullBinder{}                        = 1
-  depth (LiteralBinder _ (ArrayLiteral bs)) = foldr (\b x -> depth b `max` x) 1 bs + 1 
+  depth (LiteralBinder _ (ArrayLiteral bs)) = foldr (\b x -> depth b `max` x) 1 bs + 1
   depth (LiteralBinder _ (ObjectLiteral o)) = foldr (\(_, b) x -> depth b `max` x) 0 o + 1
   depth LiteralBinder{}                     = 1
   depth VarBinder{}                         = 1

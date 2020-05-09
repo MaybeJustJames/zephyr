@@ -1,6 +1,6 @@
 version:             0.2.2
 name:                zephyr
-synopsis:           
+synopsis:
   Zephyr tree shaking for PureScript Language
 description:
   Tree shaking tool and partial evaluator for PureScript
@@ -59,7 +59,7 @@ library
     , Language.PureScript.DCE.Errors
     , Language.PureScript.DCE.Eval
     , Language.PureScript.DCE.Utils
-  build-depends:      
+  build-depends:
       aeson               >=1.0      && <1.5
     , ansi-terminal       >=0.7.1    && <0.11
     , base                >=4.8      && <5
@@ -69,7 +69,7 @@ library
     , formatting
     , language-javascript ^>=0.7
     , mtl                 >=2.1.0    && <2.3.0
-    , purescript          ^>=0.13.6
+    , purescript          ^>=0.13.8
     , safe                ^>=0.3.9
     , text
   default-language:    Haskell2010
@@ -108,7 +108,7 @@ executable zephyr
     , language-javascript  >=0.6.0.11 && <0.8
     , mtl                  >=2.1.0    && <2.3.0
     , optparse-applicative >=0.13.0
-    , purescript
+    , purescript           ^>=0.13.8
     , text
     , transformers         >=0.3.0    && <0.6
     , utf8-string          >=1        && <2
@@ -126,7 +126,7 @@ test-suite zephyr-test
     RecordWildCards
     TupleSections
   main-is: Main.hs
-  build-depends:      
+  build-depends:
       aeson                >=1.0      && <1.5
     , base                 >=4.8      && <5
     , base-compat          >=0.6.0
@@ -139,7 +139,7 @@ test-suite zephyr-test
     , mtl                  >=2.1.0    && <2.3.0
     , optparse-applicative >=0.13.0
     , process                            <1.7.0.0
-    , purescript
+    , purescript           ^>=0.13.8
     , QuickCheck           >=2.12.1
     , text
     , transformers         >=0.3.0    && <0.6
