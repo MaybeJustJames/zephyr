@@ -20,6 +20,7 @@ import Control.Applicative ((<|>))
 import Control.Arrow (second)
 import Data.Maybe (Maybe(..), fromJust, isJust, maybeToList)
 import Data.Monoid (First(..))
+import qualified Data.Text as T
 import qualified Language.PureScript.DCE.Constants as C
 import Prelude.Compat hiding (mod)
 import Safe (atMay)
@@ -230,7 +231,7 @@ dceEval mods = traverse go mods
           (App _
             (Var ann@(ss, _, _, _)
               (Qualified
-                (Just (ModuleName [ProperName "Data", ProperName "Array"]))
+                (Just (ModuleName "Data.Array"))
                 (Ident "index")))
             (Literal _ (ArrayLiteral as)))
           (Literal _ (NumericLiteral (Left x))))
@@ -558,8 +559,10 @@ dceEval mods = traverse go mods
   -- Find a qualified name in the list of modules `mods`, return `Left ()` for
   -- `Prim` values, generics and foreign imports, `Right` for found bindings.
   findQualifiedExpr :: ModuleName -> Ident -> Maybe (Either () (Expr Ann))
-  findQualifiedExpr (ModuleName (ProperName "Prim" : _)) _ = Just (Left ())
-  findQualifiedExpr (ModuleName [ProperName "Data", ProperName "Generic"]) (Ident "anyProxy") = Just (Left ())
+  findQualifiedExpr (ModuleName mn) _
+    | "Prim" : _ <- T.splitOn "." mn
+    = Just (Left ())
+  findQualifiedExpr (ModuleName "Data.Generic") (Ident "anyProxy") = Just (Left ())
   findQualifiedExpr mn i
       = Right <$> (mod >>= getFirst . foldMap fIdent . concatMap unBind . moduleDecls)
     <|> Left  <$> (mod >>= getFirst . foldMap ffIdent . moduleForeign)
