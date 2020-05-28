@@ -3,10 +3,10 @@
 [![Travis Build Status](https://travis-ci.org/coot/zephyr.svg?branch=master)](https://travis-ci.org/coot/zephyr)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/32r7s2skrgm9ubva?svg=true)](https://ci.appveyor.com/project/coot/zephyr)
 
-Experimental tree shaking tool for [PureScript](https://github.com/purescript/purescript).
+An experimental tree-shaking tool for [PureScript](https://github.com/purescript/purescript).
 
 # Usage
-```
+```sh
 # compile your project (or use `pulp build -- -g corefn`)
 purs compile -g corefn bower_components/purescript-*/src/**/*.purs src/**/*.purs
 
@@ -19,14 +19,14 @@ webpack
 
 or you can bundle with `pulp`:
 
-```
+```sh
 pulp browserify --skip-compile -o dce-output -t app.js
 ```
 
 You can also specify modules as entry points, which is the same as specifying
 all exported identifiers.
 
-```
+```sh
 # include all identifiers from Data.Eq module
 zephyr Data.Eq
 
@@ -55,7 +55,7 @@ a = if isProduction
   else "api/dev/"
 ```
 will be transformed to
-```
+```purescript
 a = "api/prod/"
 ```
 whenever `isProduction` is `true`.  This allows you to have different
@@ -67,19 +67,19 @@ under `src-dev` where `isProduction` is set to `false`.
 
 # Build & Test
 
-```
+```sh
 cabal build exe:zephyr
 ```
 
 or using nix
 
-```
+```sh
 nix-build -A zephyr
 ```
 
 To run tests
 
-```
+```sh
 cabal run zephyr-test
 ```
 
@@ -87,14 +87,13 @@ Running test with `nix` is not supported.
 
 # Comments
 
-The `-f` switch is not 100% safe.  When on `zephyr` will remove exports from
+The `-f` switch is not 100% safe.  Upon running, `zephyr` will remove exports from
 foreign modules that seems to be not used: are not used in purescript code and
 seem not to be used in the foreign module.  If you simply assign to `exports`
 using javascript dot notation then you will be fine, but if you use square
 notation `exports[var]` in a dynamic way (i.e. var is a true variable rather
-than a string literal) then `zephyr` might remove code that shouldn't be
+than a string literal), then `zephyr` might remove code that shouldn’t be
 removed.
 
-It is good to run `webpack` or `rollup` to run a javascript tree shaking
-algorithm on the javascript code that is pulled in your bundle by your by your
-foreign imports.
+The best practice is to run a JavaScript tree-shaking algorithm via `webpack` or 
+`rollup` on the JavaScript code that is pulled in your bundle by foreign imports.

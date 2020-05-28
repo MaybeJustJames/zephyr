@@ -13,7 +13,7 @@ main :: IO ()
 main = do
   IO.hSetEncoding IO.stdout IO.utf8
   IO.hSetEncoding IO.stderr IO.utf8
-  let pinfo = Opts.info (versionOpt <*> Opts.helper <*> dceOptions) (Opts.progDesc "tree shaking breeze for PureScript")
+  let pinfo = Opts.info (versionOpt <*> Opts.helper <*> dceOptions) (Opts.progDesc "tree-shaking breeze for PureScript")
   getArgs
     >>= Opts.handleParseResult . execParserPure pinfo
     >>= runDCECommand
