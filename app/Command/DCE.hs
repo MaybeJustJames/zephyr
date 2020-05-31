@@ -45,7 +45,7 @@ import           Language.PureScript.DCE
 import qualified Language.PureScript.Errors.JSON as P
 import qualified Options.Applicative as Opts
 import qualified System.Console.ANSI as ANSI
-import           System.Directory (doesDirectoryExist, getCurrentDirectory)
+import           System.Directory (doesDirectoryExist, getCurrentDirectory, removeFile)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath ((</>), (-<.>))
 import           System.FilePath.Glob (compile, globDir1)
@@ -352,7 +352,9 @@ dceCommand DCEOptions {..} = do
     -- more information than is present in `CoreFn.Module`).
     for_ mods $ \m -> lift $ do
       let mn = CoreFn.moduleName m
-      copyExterns mn "cbor" <|> copyExterns mn "json"
+      copyExterns mn "cbor" <|> do
+        removeFile (dceOutputDir </> (T.unpack $ P.runModuleName mn) </> "externs.cbor")
+        copyExterns mn "json"
     liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors
         (suppressFFIErrors makeWarnings)
         (either (Left . suppressFFIErrors) Right makeErrors)
