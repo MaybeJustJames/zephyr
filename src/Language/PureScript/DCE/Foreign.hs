@@ -132,7 +132,8 @@ dceForeignModule is stmts = filter filterExports stmts
     isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
   isUsedInStmt n (JSForVarOf _ _ _ e1 _ e2 _ s) =
     isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
-  isUsedInStmt n (JSFunction _ _ _ _ _ (JSBlock _ ss _) _) = any (isUsedInStmt n) ss
+  isUsedInStmt n (JSFunction _ _ _ es _ (JSBlock _ ss _) _) =
+    isUsedInExprs n es || any (isUsedInStmt n) ss
   isUsedInStmt n (JSGenerator _ _ _ _ es _ (JSBlock _ ss _) _) =
     isUsedInExprs n es || any (isUsedInStmt n) ss
   isUsedInStmt n (JSIf _ _ e _ s) = isUsedInExpr n e || isUsedInStmt n s
