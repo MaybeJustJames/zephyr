@@ -365,6 +365,7 @@ dceCommand DCEOptions {..} = do
       if dceVerbose
         then sformat (string%":\n    "%string) f (A.formatError p err)
         else T.pack f
+
     copyExterns :: P.ModuleName -> String -> IO ()
     copyExterns mn extension = do
       let mn' = T.unpack . P.runModuleName $ mn
