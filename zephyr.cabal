@@ -19,12 +19,12 @@ tested-with:         ghc
 
 flag test-with-stack
   description: use `stack exec zephyr` in tests
-  manual:  True
+  manual:  False
   default: False
 
 flag test-core-libs
   description: test core libs
-  manual:  True
+  manual:  False
   default: False
 
 library
