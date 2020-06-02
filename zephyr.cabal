@@ -1,6 +1,6 @@
 version:             0.2.2
 name:                zephyr
-synopsis:           
+synopsis:
   Zephyr, tree-shaking for the PureScript language
 description:
   Tree shaking tool and partial evaluator for PureScript
