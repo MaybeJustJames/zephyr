@@ -281,7 +281,7 @@ dceCommand Options { optEntryPoints
       copyExterns mn "cbor" <|> do
         -- zephyr will always generate "externs.cbor" file, if we are working
         -- on a project using purescript-0.13.6 we need to remove it.
-        removeFile (dceOutputDir </> (T.unpack $ P.runModuleName mn) </> "externs.cbor")
+        removeFile (optOutputDir </> (T.unpack $ P.runModuleName mn) </> "externs.cbor")
         copyExterns mn "json"
     liftIO $
       printWarningsAndErrors
@@ -301,8 +301,8 @@ dceCommand Options { optEntryPoints
     copyExterns :: P.ModuleName -> String -> IO ()
     copyExterns mn extension = do
       let mn' = T.unpack . P.runModuleName $ mn
-      externs <- BSL.readFile (dceInputDir </> mn' </> "externs" -<.> extension)
-      BSL.writeFile (dceOutputDir </> mn' </> "externs" -<.> extension) externs
+      externs <- BSL.readFile (optInputDir </> mn' </> "externs" -<.> extension)
+      BSL.writeFile (optOutputDir </> mn' </> "externs" -<.> extension) externs
 
     -- a hack: purescript codegen function reads FFI from disk, and checks
     -- against it.
