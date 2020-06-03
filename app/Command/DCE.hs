@@ -353,6 +353,8 @@ dceCommand DCEOptions {..} = do
     for_ mods $ \m -> lift $ do
       let mn = CoreFn.moduleName m
       copyExterns mn "cbor" <|> do
+        -- zephyr will always generate "externs.cbor" file, if we are working
+        -- on a project using purescript-0.13.6 we need to remove it.
         removeFile (dceOutputDir </> (T.unpack $ P.runModuleName mn) </> "externs.cbor")
         copyExterns mn "json"
     liftIO $ printWarningsAndErrors (P.optionsVerboseErrors dcePureScriptOptions) dceJsonErrors
