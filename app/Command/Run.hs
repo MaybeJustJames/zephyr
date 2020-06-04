@@ -309,9 +309,9 @@ dceCommand Options { optEntryPoints
 
     copyExterns :: P.ModuleName -> String -> IO ()
     copyExterns mn extension = do
-      let mn' = T.unpack . P.runModuleName $ mn
-      externs <- BSL.readFile (optInputDir </> mn' </> "externs" -<.> extension)
-      BSL.writeFile (optOutputDir </> mn' </> "externs" -<.> extension) externs
+      let filePath = T.unpack . P.runModuleName $ mn
+      copyFile (optInputDir  </> filePath </> "externs" -<.> extension)
+               (optOutputDir </> filePath </> "externs" -<.> extension)
 
     -- a hack: purescript codegen function reads FFI from disk, and checks
     -- against it.
