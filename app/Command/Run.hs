@@ -25,6 +25,7 @@ import           Data.Either (Either, lefts, rights, partitionEithers)
 import           Data.Foldable (for_, traverse_)
 import           Data.List (null)
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           Data.Maybe (isNothing, listToMaybe)
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
@@ -40,7 +41,7 @@ import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
 import qualified Language.PureScript.Errors.JSON as P
 import qualified System.Console.ANSI as ANSI
-import           System.Directory (doesDirectoryExist, getCurrentDirectory, removeFile)
+import           System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, removeFile)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath ((</>), (-<.>))
 import           System.FilePath.Glob (compile, globDir1)
@@ -241,23 +242,32 @@ dceCommand Options { optEntryPoints
               mods)
     foreigns <- P.inferForeignModules filePathMap
     let makeActions = (P.buildMakeActions optOutputDir filePathMap foreigns optUsePrefix)
-          -- run `runForeignModuleDeadCodeElimination` in `ffiCodeGen`
-          { P.ffiCodegen = \CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleForeign } -> liftIO $
-                case moduleName `M.lookup` foreigns of
-                  Nothing -> return ()
-                  Just fp -> do
-                    jsCode <- BSL.Char8.unpack <$> BSL.readFile fp
-                    case JS.parse jsCode fp of
-                      Left _ -> return ()
-                      Right (JS.JSAstProgram ss ann) ->
-                        let ss'    = DCE.runForeignModuleDeadCodeElimination moduleForeign ss
-                            jsAst' = JS.JSAstProgram ss' ann
-                            foreignFile = optOutputDir
-                                      </> T.unpack (P.runModuleName moduleName)
-                                      </> "foreign.js"
-                        in BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
-                      Right _ -> return ()
-          }
+          { P.ffiCodegen = \CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleForeign } -> liftIO $ do
+                let codegenTargets = P.optionsCodegenTargets optPureScriptOptions
+                putStrLn (show codegenTargets)
+                when (S.member P.JS codegenTargets) $ do
+                  case moduleName `M.lookup` foreigns of
+                    -- run `runForeignModuleDeadCodeElimination`
+                    Just path | optForeign  -> do
+                      jsCode <- BSL.Char8.unpack <$> BSL.readFile path
+                      case JS.parse jsCode path of
+                        Left _ -> return ()
+                        Right (JS.JSAstProgram ss ann) ->
+                          let ss'    = DCE.runForeignModuleDeadCodeElimination moduleForeign ss
+                              jsAst' = JS.JSAstProgram ss' ann
+                              foreignFile = optOutputDir
+                                        </> T.unpack (P.runModuleName moduleName)
+                                        </> "foreign.js"
+                          in BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
+                        Right _ -> return ()
+
+                    Just _path -> do
+                      let filePath = T.unpack (P.runModuleName moduleName)
+                      copyFile (optInputDir  </> filePath </> "foreign.js")
+                               (optOutputDir </> filePath </> "foreign.js")
+
+                    Nothing -> pure ()
+            }
 
     (makeErrors, makeWarnings) <-
         liftIO
@@ -270,8 +280,7 @@ dceCommand Options { optEntryPoints
                         (moduleToExternsFile m))
             mods
 
-    when optForeign $
-      traverse_ (liftIO . P.runMake optPureScriptOptions . P.ffiCodegen makeActions) mods
+    traverse_ (liftIO . P.runMake optPureScriptOptions . P.ffiCodegen makeActions) mods
 
     -- copy extern files; We do not have access to data to regenerate extern
     -- files (they relay on more information than is present in 'CoreFn.Module'
