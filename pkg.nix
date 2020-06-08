@@ -1,5 +1,5 @@
 { mkDerivation
-, nixpkgs
+, pkgs
 , stdenv
 
 , aeson
@@ -32,7 +32,7 @@
 mkDerivation {
   pname = "zephyr";
   version = "0.2.2";
-  src = nixpkgs.lib.sourceFilesBySuffices ./.
+  src = pkgs.lib.sourceFilesBySuffices ./.
     [ ".hs" "LICENSE" "ChangeLog.md" "zephyr.cabal" ];
   # external build tools: we will need zephyr itself and also node, bower and
   # git for runing tests

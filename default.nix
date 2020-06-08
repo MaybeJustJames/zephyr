@@ -2,13 +2,12 @@
 , haddock ? false
 , test ? false
 , benchmarks ? false
+, pkgs ? import ./nix/pkgs.nix { inherit compiler; }
 }:
 with builtins;
 let
-  nixpkgs = import ./nix/nixpkgs.nix { inherit compiler; };
-
-  pkgs = nixpkgs.haskell.packages;
-  lib = nixpkgs.haskell.lib;
+  hsPkgs = pkgs.haskell.packages;
+  lib = pkgs.haskell.lib;
 
   doHaddock = if haddock
     then lib.doHaddock
@@ -18,11 +17,11 @@ let
     else lib.dontCheck;
   doBench = if benchmarks
     then lib.doBenchmark
-    else nixpkgs.lib.id;
+    else pkgs.lib.id;
 
   zephyr = lib.enableCabalFlag (doHaddock(doTest(doBench(
-    pkgs.${compiler}.callPackage ./pkg.nix {
-      inherit nixpkgs;
+    hsPkgs.${compiler}.callPackage ./pkg.nix {
+      inherit pkgs; purescript = lib.traceValShow(hsPkgs.purescript);
     })))) "test-with-cabal";
 
 in { inherit zephyr; }
