@@ -37,8 +37,11 @@ before-install:
 install:
 - curl --proto '=https' -o ghcup.sh --tlsv1.2 -sSf https://get-ghcup.haskell.org
 - sh ghcup.sh
-- ghcup install 8.6.5
-- cabal install purescript-0.13.6
+- ghcup install "8.6.5"
+- ghcup set "8.6.5"
+- ghcup list
+- ghc --version
+- cabal install purescript-0.13.8
 - npm install -g bower
 script:
 - cp cabal.project.ci cabal.project.local
