@@ -31,7 +31,7 @@
 }:
 mkDerivation {
   pname = "zephyr";
-  version = "0.2.2";
+  version = "0.3.0";
   src = nixpkgs.lib.sourceFilesBySuffices ./.
     [ ".hs" "LICENSE" "ChangeLog.md" "zephyr.cabal" ];
   # external build tools: we will need zephyr itself and also node, bower and
