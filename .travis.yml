@@ -41,6 +41,7 @@ install:
 - ghcup set "8.6.5"
 - ghcup list
 - ghc --version
+  cabal update
 - cabal install purescript-0.13.8
 - npm install -g bower
 script:
@@ -62,5 +63,6 @@ deploy:
   overwrite: true
   draft: true
   on:
+    all_branches: true
     tags: true
     repo: coot/zephyr
