@@ -29,17 +29,16 @@ else
   BIN_EXT=""
 fi
 
-LOCAL_INSTALL_ROOT="dist-newstyle/build/${OS_NAME}/ghc-8.6.5/zephyr-0.2.2/x/zephyr/build/zephyr"
-ZEPHYR="${LOCAL_INSTALL_ROOT}/zephyr${BIN_EXT}"
-
 BUNDLE_DIR="bundle/zephyr"
 mkdir -p ${BUNDLE_DIR}
+cabal install --install-method=copy --installdir ${BUNDLE_DIR} exe:zephyr
+ZEPHYR="${BUNDLE_DIR}/zephyr${BIN_EXT}"
 
 # strip the executable
 if [[ ${OS_NAME} != "x86_64-windows" ]]; then
   strip ${ZEPHYR};
 fi
-cp ${ZEPHYR} README.md LICENSE ${BUNDLE_DIR};
+cp README.md LICENSE ${BUNDLE_DIR};
 
 # dependencies
 cabal info . > "${BUNDLE_DIR}/info"
