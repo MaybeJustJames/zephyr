@@ -1,0 +1,148 @@
+# Release workflow.
+# It runs two jobs
+#  - build job which builds zephyr on: linux, macos and windows and uploads
+#    artifacts using `action/upload-artifact`.
+#  - release job which depends on completion of the previous job:
+#     * creata a new release using `actions/create-release`
+#     * downloads artifacts using `action/download-artifact`.
+#     * uploads artifacts to the release with `action/upload-release-asset`
+#    The last two actions are done for all three systems.
+#
+on:
+  push:
+    tags:
+    - 'v*'
+
+name: Upload Release Assets
+
+jobs:
+  build:
+    name: Release build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - uses: actions/setup-haskell@v1
+        with:
+          ghc-version: '8.6.5'
+          cabal-version: '3.2'
+      - name: Setup paths
+        run: echo "::add-path::${HOME}/.cabal/bin"
+      - name: Build zephyr
+        run: bash bundle/build.sh ${{ runner.os }}
+      - name: Upload tar file
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ runner.os }}.tar.gz
+          path: bundle/${{ runner.os }}.tar.gz
+      - name: Upload sha file
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ runner.os }}.sha
+          path: bundle/${{ runner.os }}.sha
+
+  release:
+    needs: [build]
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          prerelease: false
+
+      - name: Download Linux.tar.gz
+        uses: actions/download-artifact@v2
+        with:
+          name: Linux.tar.gz
+      - name: Download Linux.sha
+        uses: actions/download-artifact@v2
+        with:
+          name: Linux.sha
+      - name: Upload Linux.tar.gz
+        id: upload-Linux
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: Linux.tar.gz
+          asset_name: Linux.tar.gz
+          asset_content_type: application/zip
+      - name: Upload Linux.sha
+        id: upload-Linux-sha
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: Linux.sha
+          asset_name: Linux.sha
+          asset_content_type: application/zip
+
+      - name: Download macOS.tar.gz
+        uses: actions/download-artifact@v2
+        with:
+          name: macOS.tar.gz
+      - name: Download macOS.sha
+        uses: actions/download-artifact@v2
+        with:
+          name: macOS.sha
+      - name: Upload macOS.tar.gz
+        id: upload-macOS
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: macOS.tar.gz
+          asset_name: macOS.tar.gz
+          asset_content_type: application/zip
+      - name: Upload macOS.sha
+        id: upload-macOS-sha
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: macOS.sha
+          asset_name: macOS.sha
+          asset_content_type: application/zip
+
+      - name: Download Windows.tar.gz
+        uses: actions/download-artifact@v2
+        with:
+          name: Windows.tar.gz
+      - name: Download Windows.sha
+        uses: actions/download-artifact@v2
+        with:
+          name: Windows.sha
+      - name: Upload Windows.tar.gz
+        id: upload-Windows
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: Windows.tar.gz
+          asset_name: Windows.tar.gz
+          asset_content_type: application/zip
+      - name: Upload Windows.sha
+        id: upload-Windows-sha
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: Windows.sha
+          asset_name: Windows.sha
+          asset_content_type: application/zip

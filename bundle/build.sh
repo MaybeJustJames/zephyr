@@ -4,25 +4,15 @@
 ## Usage bundle.sh os
 set -e
 
+
 if [[ -z ${1} ]]; then
-  echo "Usage build.sh os_name";
+  echo "Usage build.sh [Linux|macOS|Windows]";
   exit 1;
 fi
 
+OS_NAME="$1"
 
-# Build OS_NAME
-case $1 in
-  "linux")
-    OS_NAME="x86_64-linux";;
-  "osx")
-    OS_NAME="x86_64-osx";;
-  "win64")
-    OS_NAME="x86_64-windows";;
-  *)
-    OS_NAME=${1};;
-esac
-
-if [[ "$OS" = "win64" ]]
+if [[ "$OS" = "Windows" ]]
 then
   BIN_EXT=".exe"
 else
@@ -31,11 +21,11 @@ fi
 
 BUNDLE_DIR="bundle/zephyr"
 mkdir -p ${BUNDLE_DIR}
-cabal install --install-method=copy --installdir ${BUNDLE_DIR} exe:zephyr
 ZEPHYR="${BUNDLE_DIR}/zephyr${BIN_EXT}"
+cabal install --install-method=copy --installdir ${BUNDLE_DIR} exe:zephyr
 
 # strip the executable
-if [[ ${OS_NAME} != "x86_64-windows" ]]; then
+if [[ ${OS_NAME} != "Windows" && -a ${ZEPHYR} ]]; then
   strip ${ZEPHYR};
 fi
 cp README.md LICENSE ${BUNDLE_DIR};
@@ -44,7 +34,7 @@ cp README.md LICENSE ${BUNDLE_DIR};
 cabal info . > "${BUNDLE_DIR}/info"
 
 # Calculate the SHA hash
-if [[ ${OS_NAME} = "x86_64-windows" ]]; then
+if [[ ${OS_NAME} = "Windows" ]]; then
   SHASUM="openssl dgst -sha1";
 else
   SHASUM="shasum";
