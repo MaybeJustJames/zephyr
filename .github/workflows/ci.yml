@@ -13,6 +13,15 @@ jobs:
       with:
         ghc-version: '8.6.5'
         cabal-version: '3.2'
+    - name: Setup cabal paths
+      run: echo "::add-path::${HOME}/.cabal/bin"
+    - uses: actions/setup-node@v1
+      with:
+        node-version: '12'
+    - name: Install bower
+      run: npm install --global bower
+    - name: Setup bower paths
+      run: echo "::add-path::${HOME}/.cabal/bin"
     - name: Cache
       uses: actions/cache@v1
       env:
@@ -24,8 +33,6 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
-    - name: Setup paths
-      run: echo "::add-path::${HOME}/.cabal/bin"
     - name: Install dependencies
       run: |
         cabal update
