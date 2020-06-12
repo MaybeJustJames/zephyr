@@ -1,7 +1,6 @@
 # zephyr
 [![Maintainer: coot](https://img.shields.io/badge/maintainer-coot-lightgrey.svg)](http://github.com/coot)
-[![Travis Build Status](https://travis-ci.org/coot/zephyr.svg?branch=master)](https://travis-ci.org/coot/zephyr)
-[![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/32r7s2skrgm9ubva?svg=true)](https://ci.appveyor.com/project/coot/zephyr)
+![zephyr](https://github.com/coot/zephyr/workflows/Haskell%20CI/badge.svg)
 
 An experimental tree-shaking tool for [PureScript](https://github.com/purescript/purescript).
 
@@ -71,19 +70,11 @@ under `src-dev` where `isProduction` is set to `false`.
 cabal build exe:zephyr
 ```
 
-or using nix
-
-```sh
-nix-build -A zephyr
-```
-
 To run tests
 
 ```sh
 cabal run zephyr-test
 ```
-
-Running test with `nix` is not supported.
 
 # Comments
 
