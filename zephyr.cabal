@@ -1,3 +1,4 @@
+cabal-version:       2.0
 version:             0.3.1
 name:                zephyr
 synopsis:
@@ -14,7 +15,6 @@ copyright:           (c) 2017-2018 Marcin Szamotulski
 build-type:          Simple
 extra-source-files:  README.md
 category:            Development
-cabal-version:       >=2.0
 tested-with:         ghc
 
 flag test-with-stack
@@ -79,6 +79,8 @@ executable zephyr
   other-modules:
     Command.Run
     Command.Options
+    Paths_zephyr
+  autogen-modules:
     Paths_zephyr
   default-extensions:
     DataKinds
