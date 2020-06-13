@@ -14,7 +14,10 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.Supply
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Trans.Except
-import           Control.Exception (evaluate)
+import           Control.Exception
+import           Control.Concurrent.QSem
+import qualified Control.Concurrent.Async as Async
+
 import qualified Data.Aeson as A
 import           Data.Aeson.Internal (JSONPath)
 import qualified Data.Aeson.Internal as A
@@ -35,6 +38,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as TE
 import           Data.Version (Version)
 import           Formatting (sformat, string, stext, (%))
+
+import           GHC.Conc.Sync (getNumCapabilities)
 
 import qualified Language.PureScript.Docs.Types as Docs
 import qualified Language.JavaScript.Parser as JS
@@ -64,11 +69,24 @@ readInput :: [FilePath]
                   (Version, CoreFn.Module CoreFn.Ann)
                 ]
 
-readInput inputFiles = forM inputFiles $ \f -> do
-    c <- BSL.readFile f
-    case decodeCoreFn c of
-      Left  (p, e)     -> pure $ Left  (f, p, e)
-      Right r@(!_, !_) -> pure $ Right r
+readInput inputFiles = do
+    -- limit parallelizm to at most the number of capablities
+    sem <- getNumCapabilities >>= newQSem
+    threads <-
+      forM inputFiles $ \f -> do
+        waitQSem sem
+        mask $ \unmask -> Async.async $
+          (unmask $ do
+            c <- BSL.readFile f
+            -- being strict here forces reading the file and promptly closing its file
+            -- descriptor
+            case decodeCoreFn c of
+              Left  (p, e)     -> pure $ Left  (f, p, e)
+              Right r@(!_, !_) -> pure $ Right r
+          )
+          `finally`
+            signalQSem sem
+    forM threads Async.wait
   where
     decodeCoreFn :: BSL.ByteString
                  -> Either (JSONPath, String)
@@ -236,8 +254,6 @@ dceCommand Options { optEntryPoints
                         entryPoints
                         (snd `map` rights inpts)
 
-    -- relPath <- liftIO getCurrentDirectory
-    -- liftIO $ traverse_ (hPutStrLn stderr . uncurry (displayDCEWarning relPath)) (zip (zip [1..] (repeat (length warns))) warns)
     let filePathMap =
           M.fromList
             (map
