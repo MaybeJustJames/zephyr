@@ -2,7 +2,11 @@
 [![Maintainer: coot](https://img.shields.io/badge/maintainer-coot-lightgrey.svg)](http://github.com/coot)
 ![zephyr](https://github.com/coot/zephyr/workflows/Haskell%20CI/badge.svg)
 
-An experimental tree-shaking tool for [PureScript](https://github.com/purescript/purescript).
+A tree-shaking tool for [PureScript](https://github.com/purescript/purescript).
+`zephyr` takes root terms, finds all terms which are required to evaluate
+them, and generates code just for them.  This is done across all dependencies,
+and can substantially reduce the size of purescript bundles.  `zephyr` can also
+evaluate some expressions (an experimental feature).
 
 # Usage
 ```sh
