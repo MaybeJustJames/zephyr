@@ -247,7 +247,6 @@ dceCommand Options { optEntryPoints
     let makeActions = (P.buildMakeActions optOutputDir filePathMap foreigns optUsePrefix)
           { P.ffiCodegen = \CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleForeign } -> liftIO $ do
                 let codegenTargets = P.optionsCodegenTargets optPureScriptOptions
-                putStrLn (show codegenTargets)
                 when (S.member P.JS codegenTargets) $ do
                   case moduleName `M.lookup` foreigns of
                     -- run `runForeignModuleDeadCodeElimination`
