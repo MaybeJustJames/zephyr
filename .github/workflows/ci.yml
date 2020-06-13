@@ -40,7 +40,7 @@ jobs:
     - name: Install dependencies
       run: |
         cabal update
-        cabal install purescript-0.13.8
+        cabal install --overwrite-policy=always purescript-0.13.8
         cabal build --only-dependencies --enable-tests --enable-benchmarks
     - name: Build
       run: cabal build exe:zephyr
