@@ -1,9 +1,10 @@
-name: Haskell CI
+name: zephyr
 
 on: [push]
 
 jobs:
   build:
+    name: build
 
     runs-on: ubuntu-latest
 
