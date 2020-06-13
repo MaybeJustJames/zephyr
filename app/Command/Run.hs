@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns   #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 -- | Dead code elimination command based on `Language.PureScript.CoreFn.DCE`.
@@ -13,6 +14,7 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.Supply
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Trans.Except
+import           Control.Exception (evaluate)
 import qualified Data.Aeson as A
 import           Data.Aeson.Internal (JSONPath)
 import qualified Data.Aeson.Internal as A
@@ -62,17 +64,16 @@ readInput :: [FilePath]
                   (Version, CoreFn.Module CoreFn.Ann)
                 ]
 
-readInput inputFiles = forM inputFiles (\f -> addPath f . decodeCoreFn <$> BSL.readFile f)
+readInput inputFiles = forM inputFiles $ \f -> do
+    c <- BSL.readFile f
+    case decodeCoreFn c of
+      Left  (p, e)     -> pure $ Left  (f, p, e)
+      Right r@(!_, !_) -> pure $ Right r
   where
-  decodeCoreFn :: BSL.ByteString -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
-  decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON)
-
-  addPath
-    :: FilePath
-    -> Either (JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
-    -> Either (FilePath, JSONPath, String) (Version, CoreFn.Module CoreFn.Ann)
-  addPath f = either (Left . incl) Right
-    where incl (l,r) = (f,l,r)
+    decodeCoreFn :: BSL.ByteString
+                 -> Either (JSONPath, String)
+                           (Version, CoreFn.Module CoreFn.Ann)
+    decodeCoreFn = eitherDecodeWith json (A.iparse CoreFn.moduleFromJSON)
 
 
 -- | Argumnets: verbose, use JSON, warnings, errors
@@ -155,29 +156,29 @@ getEntryPoints
   -> [Either EntryPoint (P.Qualified P.Ident)]
 getEntryPoints mods = go []
   where
-  go acc [] = acc
-  go acc ((EntryPoint i) : eps)  =
-    if i `fnd` mods
-      then go (Right i : acc) eps
-      else go (Left (EntryPoint i)  : acc) eps
-  go acc ((EntryModule mn) : eps) = go (modExports mn mods ++ acc) eps
-  go acc ((err@EntryParseError{}) : eps) = go (Left err : acc) eps
+    go acc [] = acc
+    go acc ((EntryPoint i) : eps)  =
+      if i `fnd` mods
+        then go (Right i : acc) eps
+        else go (Left (EntryPoint i)  : acc) eps
+    go acc ((EntryModule mn) : eps) = go (modExports mn mods ++ acc) eps
+    go acc ((err@EntryParseError{}) : eps) = go (Left err : acc) eps
 
-  modExports :: P.ModuleName -> [CoreFn.Module CoreFn.Ann] -> [Either EntryPoint (P.Qualified P.Ident)]
-  modExports mn [] = [Left (EntryModule mn)]
-  modExports mn (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
-    | mn == moduleName
-    = (Right . flip P.mkQualified mn) `map` moduleExports
-    | otherwise
-    = modExports mn ms
+    modExports :: P.ModuleName -> [CoreFn.Module CoreFn.Ann] -> [Either EntryPoint (P.Qualified P.Ident)]
+    modExports mn [] = [Left (EntryModule mn)]
+    modExports mn (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
+      | mn == moduleName
+      = (Right . flip P.mkQualified mn) `map` moduleExports
+      | otherwise
+      = modExports mn ms
 
-  fnd :: P.Qualified P.Ident -> [CoreFn.Module CoreFn.Ann] -> Bool
-  fnd _ [] = False
-  fnd qi@(P.Qualified (Just mn) i) (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
-    = if moduleName == mn && i `elem` moduleExports
-        then True
-        else fnd qi ms
-  fnd _ _ = False
+    fnd :: P.Qualified P.Ident -> [CoreFn.Module CoreFn.Ann] -> Bool
+    fnd _ [] = False
+    fnd qi@(P.Qualified (Just mn) i) (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
+      = if moduleName == mn && i `elem` moduleExports
+          then True
+          else fnd qi ms
+    fnd _ _ = False
 
 
 dceCommand :: Options -> ExceptT DCEAppError IO ()
@@ -198,7 +199,9 @@ dceCommand Options { optEntryPoints
 
     -- read files, parse errors
     let cfnGlb = compile "**/corefn.json"
-    inpts <- liftIO $ globDir1 cfnGlb optInputDir >>= readInput
+    inpts0 <- liftIO $ globDir1 cfnGlb optInputDir >>= readInput
+    -- force inputs sequentially
+    inpts  <- liftIO $ traverse evaluate inpts0
     let errs = lefts inpts
     unless (null errs) $
       throwError (ParseErrors $ formatError `map` errs)
@@ -318,9 +321,9 @@ dceCommand Options { optEntryPoints
     suppressFFIErrors :: P.MultipleErrors -> P.MultipleErrors
     suppressFFIErrors (P.MultipleErrors errs) = P.MultipleErrors $ filter fn errs
       where
-      fn (P.ErrorMessage _ P.UnnecessaryFFIModule{})     = False
-      fn (P.ErrorMessage _ P.UnusedFFIImplementations{}) = False
-      fn _                                               = True
+        fn (P.ErrorMessage _ P.UnnecessaryFFIModule{})     = False
+        fn (P.ErrorMessage _ P.UnusedFFIImplementations{}) = False
+        fn _                                               = True
 
     moduleToExternsFile :: CoreFn.Module a -> P.ExternsFile
     moduleToExternsFile CoreFn.Module {CoreFn.moduleName} = P.ExternsFile {
