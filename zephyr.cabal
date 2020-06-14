@@ -66,7 +66,7 @@ library
     , boxes               ^>=0.1.4
     , containers
     , formatting
-    , language-javascript ^>=0.7
+    , language-javascript ^>=0.7.1
     , mtl                 >=2.1.0    && <2.3.0
     , purescript          ^>=0.13.8
     , safe                ^>=0.3.9
