@@ -48,7 +48,8 @@ import qualified Language.PureScript.CoreFn as CoreFn
 import qualified Language.PureScript.CoreFn.FromJSON as CoreFn
 import qualified Language.PureScript.Errors.JSON as P
 import qualified System.Console.ANSI as ANSI
-import           System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, removeFile)
+import           System.Directory (copyFile, doesDirectoryExist, doesFileExist,
+                                   getCurrentDirectory, removeFile)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath ((</>), (-<.>))
 import           System.FilePath.Glob (compile, globDir1)
@@ -279,10 +280,12 @@ dceCommand Options { optEntryPoints
                           in BSL.writeFile foreignFile (TE.encodeUtf8 $ JS.renderToText jsAst')
                         Right _ -> return ()
 
-                    Just _path -> do
+                    Just path -> do
                       let filePath = T.unpack (P.runModuleName moduleName)
-                      copyFile (optInputDir  </> filePath </> "foreign.js")
-                               (optOutputDir </> filePath </> "foreign.js")
+                          outputPath = optInputDir </> filePath </> "foreign.js"
+                      -- prefer foreign module in 'optOutputDir'.
+                      bool path outputPath <$> doesFileExist outputPath
+                        >>= (`copyFile` (optOutputDir </> filePath </> "foreign.js"))
 
                     Nothing -> pure ()
             }
