@@ -13,7 +13,9 @@ author:              Marcin Szamotulski <profunctor@pm.me>
 maintainer:          Marcin Szamotulski <profunctor@pm.me>
 copyright:           (c) 2017-2018 Marcin Szamotulski
 build-type:          Simple
-extra-source-files:  README.md
+extra-source-files: 
+  ChangeLog.md
+  README.md
 category:            Development
 tested-with:         ghc
 
