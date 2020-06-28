@@ -1,3 +1,2 @@
 package zephyr
   ghc-options: -Werror
-  
