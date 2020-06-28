@@ -51,6 +51,12 @@ library
     ViewPatterns
   ghc-options:
       -Wall
+      -Wcompat
+      -Widentities
+      -Wincomplete-record-updates
+      -Wincomplete-uni-patterns
+      -Wpartial-fields
+      -Wredundant-constraints
       -fmax-pmcheck-iterations=4000000
   exposed-modules:
       Language.PureScript.DCE
@@ -91,6 +97,12 @@ executable zephyr
     OverloadedStrings
   ghc-options:
     -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
     -fno-warn-unused-do-bind
     -threaded
     -rtsopts
@@ -165,6 +177,12 @@ test-suite zephyr-test
       -DTEST_CORE_LIBS=1
   ghc-options:
     -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
     -threaded
     -rtsopts
     -with-rtsopts=-N
