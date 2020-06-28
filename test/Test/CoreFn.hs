@@ -32,7 +32,9 @@ ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
 prop_exprDepth :: PSExpr Ann -> Property
 prop_exprDepth (PSExpr e) =
   let b = NonRec ann (Ident "x") e
-      NonRec _ _ e' = runBindDeadCodeElimination b
+      e' = case runBindDeadCodeElimination b of
+        NonRec _ _ a -> a
+        _ -> error "runBindDeadCodeElimination: recursive binds are unsupported"
       d  = exprDepth e
       d' = exprDepth e'
   in collect (10 * (d' * 100 `div` (10 * d)))
@@ -42,7 +44,9 @@ prop_exprDepth (PSExpr e) =
 prop_lets :: PSExpr Ann -> Property
 prop_lets (PSExpr f) =
   let b = NonRec ann (Ident "x") f
-      NonRec _ _ f' = runBindDeadCodeElimination b
+      f' = case runBindDeadCodeElimination b of
+        NonRec _ _ a -> a
+        _ -> error "runBindDeadCodeElimination: recursive binds are unsupported"
       d  = countLets f
       d' = countLets f'
       idents = findBindIdents f'
@@ -185,4 +189,4 @@ spec = do
           bs `shouldSatisfy` hasIdent (Ident "sunny")
           bs `shouldSatisfy` not . hasIdent (Ident "shadow")
           cs `shouldSatisfy` hasIdent (Ident "shadow")
-        _ -> undefined
+        _ -> error "runBindDeadCodeElimination: recursive binds are unsupported"
