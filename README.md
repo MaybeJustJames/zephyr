@@ -92,6 +92,10 @@ To run tests
 cabal run zephyr-test
 ```
 
+# Non standard c libraries
+
+The released binaries are dynamically linked against `glibc`, if your system is using `musl` (or some other standard c library), you will need a `ghc` for that system and compile `zephyr` yourself.
+
 # Comments
 
 The `-f` switch is not 100% safe.  Upon running, `zephyr` will remove exports from
