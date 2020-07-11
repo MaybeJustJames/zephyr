@@ -92,9 +92,9 @@ To run tests
 cabal run zephyr-test
 ```
 
-# Non standard c libraries
+# C Libraries
 
-The released binaries are dynamically linked against `glibc`, if your system is using `musl` (or some other standard c library), you will need a `ghc` for that system and compile `zephyr` yourself.
+The released binaries are dynamically linked against `glibc`, so if your system is using `musl` (like Alpine Linux in `docker`) or another alternative C library, you will need to compile `zephyr` from source using `ghc` on that system.
 
 # Comments
 
