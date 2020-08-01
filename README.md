@@ -76,7 +76,7 @@ under `src-dev` where `isProduction` is set to `false`.
 * [parcel](https://github.com/parcel-bundler/parcel)
 * [spago](https://github.com/purescript/spago). See
   [this](https://github.com/thomashoneyman/purescript-halogen-realworld)
-  example.  Use `spago build --purs-args '--codegen corefn'` to compile, using
+  example.  Use `spago build --purs-args '--codegen corefn,js'` to compile, using
   `spago bundle` is currently affected by
   [issue](https://github.com/purescript/spago/issues/216).
 
