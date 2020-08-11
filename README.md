@@ -8,6 +8,9 @@ them, and generates code just for them.  This is done across all dependencies,
 and can substantially reduce the size of PureScript bundles.  `zephyr` can also
 evaluate some expressions (an experimental feature).
 
+# Installation
+The simplest option is to download the latest [release](https://github.com/coot/zephyr/releases) binary. You may also build from source (see "Build & Test" section below).
+
 # Usage
 ```sh
 # compile your project
