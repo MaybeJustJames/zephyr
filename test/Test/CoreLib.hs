@@ -123,7 +123,7 @@ runCoreLibTest CoreLibTest { coreLibTestRepo
 
   (ecNode, stdNode, errNode) <- lift
     $ readProcessWithExitCode
-        "node"
+        nodeExe
         [ "-e"
         , T.unpack $ maybe defaultJsCmd fst coreLibTestJsCmd
         ]

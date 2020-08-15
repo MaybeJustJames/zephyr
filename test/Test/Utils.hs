@@ -4,6 +4,7 @@ module Test.Utils where
 
 import           Prelude ()
 import           Prelude.Compat hiding (exp)
+import           Control.Exception (bracket)
 import           Control.Monad (when)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
@@ -33,15 +34,29 @@ test_prg = "stack"
 test_args = ["exec", "zephyr", "--"]
 #endif
 
+pursExe, bowerExe, npmExe, nodeExe, gitExe :: String
+#if !defined(mingw32_HOST_OS)
+pursExe  = "purs"
+gitExe   = "git"
+nodeExe  = "node"
+#else
+pursExe  = "purs.exe"
+gitExe   = "git.exe"
+nodeExe  = "node.exe"
+#endif
+bowerExe = "bower"
+npmExe   = "npm"
+
 
 changeDir :: FilePath -> Spec -> Spec
 changeDir path =
     around_ $ \runTests -> do
       createDirectoryIfMissing False path
       cwd <- getCurrentDirectory
-      setCurrentDirectory path
-      runTests
-      setCurrentDirectory cwd
+      bracket
+        (setCurrentDirectory path)
+        (\_ -> setCurrentDirectory cwd)
+        (\_ -> runTests)
 
 
 bowerInstall
@@ -50,7 +65,7 @@ bowerInstall
 bowerInstall coreLibTestRepo = do
   bowerComponentsExists <- lift $ doesDirectoryExist "bower_components"
   when (not bowerComponentsExists) $ do
-    (ecBower, _, errBower) <- lift $ readProcessWithExitCode "bower" ["install"] ""
+    (ecBower, _, errBower) <- lift $ readProcessWithExitCode bowerExe ["install"] ""
     when (ecBower /= ecBower) (throwError (BowerError coreLibTestRepo ecBower errBower))
 
 
@@ -62,7 +77,7 @@ pursCompile coreLibTestRepo = do
   when (not outputDirExists) $ do
     (ecPurs, _, errPurs) <- lift
       $ readProcessWithExitCode
-          "purs"
+          pursExe
           [ "compile"
           , "--codegen" , "corefn"
           , "bower_components/purescript-*/src/**/*.purs"
@@ -81,7 +96,7 @@ cloneRepo coreLibTestRepo = do
 
   repoExist <- lift $ doesDirectoryExist $ T.unpack dir
   unless repoExist $ do
-    (ecGit, _, errGc) <- lift $ readProcessWithExitCode "git" ["clone", "--depth", "1", T.unpack coreLibTestRepo, T.unpack dir] ""
+    (ecGit, _, errGc) <- lift $ readProcessWithExitCode gitExe ["clone", "--depth", "1", T.unpack coreLibTestRepo, T.unpack dir] ""
     when (ecGit /= ExitSuccess) (throwError (GitError coreLibTestRepo ecGit errGc))
   return (T.unpack dir)
 
@@ -95,9 +110,9 @@ npmInstall coreLibTestRepo npmModules = do
   nodeModulesExists <- lift $ doesDirectoryExist "node_modules"
   when ((pkgJson || not (null npmModules)) && not nodeModulesExists) $ do
     when (not $ null $ npmModules) $ do
-      (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode "npm" (["install"] ++ T.unpack `map` npmModules) ""
+      (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode npmExe (["install"] ++ T.unpack `map` npmModules) ""
       when (ecNpm /= ExitSuccess) (throwError (NpmError coreLibTestRepo ecNpm errNpm))
-    (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode "npm" ["install"] ""
+    (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode npmExe ["install"] ""
     when (ecNpm /= ExitSuccess) (throwError (NpmError coreLibTestRepo ecNpm errNpm))
 
 
