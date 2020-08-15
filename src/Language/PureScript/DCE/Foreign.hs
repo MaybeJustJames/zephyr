@@ -132,8 +132,10 @@ runForeignModuleDeadCodeElimination is stmts = filter filterExports stmts
       isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
     isUsedInStmt n (JSForVarOf _ _ _ e1 _ e2 _ s) =
       isUsedInExpr n e1 || isUsedInExpr n e2 || isUsedInStmt n s
-    isUsedInStmt n (JSAsyncFunction _ _ _ _ es _ (JSBlock _ ss _) _) =
-      isUsedInExprs n es || any (isUsedInStmt n) ss
+    {--
+      - isUsedInStmt n (JSAsyncFunction _ _ _ _ es _ (JSBlock _ ss _) _) =
+      -   isUsedInExprs n es || any (isUsedInStmt n) ss
+      --}
     isUsedInStmt n (JSFunction _ _ _ es _ (JSBlock _ ss _) _) =
       isUsedInExprs n es || any (isUsedInStmt n) ss
     isUsedInStmt n (JSGenerator _ _ _ _ es _ (JSBlock _ ss _) _) =
@@ -162,7 +164,7 @@ runForeignModuleDeadCodeElimination is stmts = filter filterExports stmts
     isUsedInExpr n (JSMemberDot e1 _ e2) = isUsedInExpr n e1 || isUsedInExpr n e2
     isUsedInExpr n (JSArrayLiteral _ as _) = any (isUsedInArrayElement n) as
     isUsedInExpr n (JSAssignExpression e1 _ e2) = isUsedInExpr n e1 || isUsedInExpr n e2
-    isUsedInExpr n (JSAwaitExpression _ e) = isUsedInExpr n e
+    -- isUsedInExpr n (JSAwaitExpression _ e) = isUsedInExpr n e
     isUsedInExpr n (JSCallExpression e _ es _) = isUsedInExpr n e || isUsedInExprs n es
     isUsedInExpr n (JSCallExpressionDot e1 _ e2) = isUsedInExpr n e1 || isUsedInExpr n e2
     isUsedInExpr n (JSCallExpressionSquare e1 _ e2 _) = isUsedInExpr n e1 || isUsedInExpr n e2
