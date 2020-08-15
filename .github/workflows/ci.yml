@@ -6,26 +6,32 @@ jobs:
   build:
     name: build
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [windows-latest]
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-haskell@v1
+    - uses: actions/setup-haskell@v1.1
       with:
         ghc-version: '8.6.5'
         cabal-version: '3.2'
     - name: Setup cabal paths
-      run: echo "::add-path::${HOME}/.cabal/bin"
+      run: |
+        echo "::add-path::${HOME}/.cabal/bin"
+        echo "::add-path::${HOME}/AppData/Roaming/cabal/bin"
     - uses: actions/setup-node@v1
       with:
         node-version: '12'
     - name: Install bower
       run: npm install --global bower
-    - name: Setup bower paths
-      run: echo "::add-path::${HOME}/.cabal/bin"
+    - name: Check versions
+      run: |
+        node --version
+        npm --version
+        bower --version
+    - name: Set bower path
+      run: echo "::add-path::${HOME}/AppData/Roaming/npm"
     - name: Cache
       uses: actions/cache@v1
       env:
@@ -37,12 +43,16 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
-    - name: Install dependencies
+    - name: Update cabal
+      run: cabal update
+    - uses: actions/checkout@v2
+    - name: Install zephyr's dependencies
       run: |
-        cabal update
-        cabal install --overwrite-policy=always purescript-0.13.8
-        cabal build --only-dependencies --enable-tests --enable-benchmarks
-    - name: Build
+        cabal install --install-method=copy --overwrite-policy=always purescript-0.13.8
+        ls ${HOME}/AppData/Roaming/cabal/bin
+        which purs.exe
+        cabal build --only-dependencies
+    - name: Build zephyr
       run: |
         cp cabal.project.ci cabal.project.local
         cabal build exe:zephyr

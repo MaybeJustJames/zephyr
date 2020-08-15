@@ -14,11 +14,11 @@ import qualified Test.Lib
 #ifdef TEST_CORE_LIBS
 import qualified Test.CoreLib
 #endif
-
+import           Test.Utils
 
 main :: IO ()
 main = do
-  readProcess "purs" ["--version"] "" >>= putStrLn . (\v -> "\npurs version: " ++ v)
+  readProcess pursExe ["--version"] "" >>= putStrLn . (\v -> "\npurs version: " ++ v)
 
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8

@@ -1,2 +1,5 @@
+documentation: true
+tests: true
+
 package zephyr
   ghc-options: -Werror
