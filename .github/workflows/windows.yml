@@ -5,12 +5,7 @@ on: [push]
 jobs:
   build:
     name: build
-
     runs-on: windows-latest
-    strategy:
-      matrix:
-        os: [windows-latest]
-
     steps:
     - uses: actions/setup-haskell@v1.1
       with:
@@ -52,4 +47,6 @@ jobs:
         cp cabal.project.ci cabal.project.local
         cabal build exe:zephyr
     - name: Run tests
+      # We dont' run `-m TestLib` as on posix; Getting bower path on Windows
+      # recognised by `readProcessWithExitCode` is impossible.
       run: cabal run zephyr-test -- -m generators -m dceEval -m dceExpr
