@@ -6,7 +6,7 @@ jobs:
   build:
     name: build
 
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     strategy:
       matrix:
         os: [windows-latest]
@@ -18,7 +18,6 @@ jobs:
         cabal-version: '3.2'
     - name: Setup cabal paths
       run: |
-        echo "::add-path::${HOME}/.cabal/bin"
         echo "::add-path::${HOME}/AppData/Roaming/cabal/bin"
     - uses: actions/setup-node@v1
       with:
@@ -30,8 +29,6 @@ jobs:
         node --version
         npm --version
         bower --version
-    - name: Set bower path
-      run: echo "::add-path::${HOME}/AppData/Roaming/npm"
     - name: Cache
       uses: actions/cache@v1
       env:
@@ -49,12 +46,10 @@ jobs:
     - name: Install zephyr's dependencies
       run: |
         cabal install --install-method=copy --overwrite-policy=always purescript-0.13.8
-        ls ${HOME}/AppData/Roaming/cabal/bin
-        which purs.exe
         cabal build --only-dependencies
     - name: Build zephyr
       run: |
         cp cabal.project.ci cabal.project.local
         cabal build exe:zephyr
     - name: Run tests
-      run: cabal run zephyr-test -- -m generators -m dceEval -m dceExpr -m TestLib
+      run: cabal run zephyr-test -- -m generators -m dceEval -m dceExpr
