@@ -1,0 +1,84 @@
+name: Haskell CI
+
+on: [push]
+
+jobs:
+  build:
+    name: build
+
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/setup-haskell@v1.1.4
+      with:
+        ghc-version:   '8.6.5'
+        cabal-version: '3.2'
+
+    - name: Setup cabal path (posix)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run:
+        echo "${HOME}/.cabal/bin" >> $GITHUB_PATH
+    - name: Setup cabal path (windows)
+      if: matrix.os == 'windows-latest'
+      run:
+        echo "${HOME}/AppData/Roaming/cabal/bin" >> $GITHUB_PATH
+
+    - uses: actions/setup-node@v1
+      with:
+        node-version: '12'
+    - name: Install bower
+      run: npm install --global bower
+    - name: Check versions
+      run: |
+        node --version
+        npm --version
+        bower --version
+    - name: Cache
+      uses: actions/cache@v1
+      env:
+        cache-name: cache-cabal
+      with:
+        path: ~/.cabal
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+    - name: Update cabal
+      run: cabal update
+    - uses: actions/checkout@v2
+    - name: Install zephyr's dependencies
+      run: |
+        cabal install --install-method=copy --overwrite-policy=always purescript-0.13.8
+        cabal build --only-dependencies
+
+    - name: Purs version (posix)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run: |
+        purs --version
+    - name: Purs version (windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        purs.exe --version
+
+    - name: Build zephyr
+      run: |
+        cp cabal.project.ci cabal.project.local
+        cabal build exe:zephyr
+
+    - name: Run tests (posix)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run: cabal run zephyr-test -- -m generators -m evaluate -m corefn -m test-lib
+
+    - name: Run tests (windows)
+      if: matrix.os == 'windows-latest'
+      # We dont' run `-m test-lib` as on posix; Getting bower path on Windows
+      # recognised by `readProcessWithExitCode` is impossible.
+      run: cabal run zephyr-test -- -m generators -m evaluate -m corefn

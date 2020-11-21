@@ -79,6 +79,6 @@ runLibTest LibTest { libTestEntries
 spec :: Spec
 spec =
   changeDir "test/lib-tests" $
-    context "TestLib" $
+    context "test-lib" $
       forM_ libTests $ \l ->
         specify (T.unpack $ T.intercalate (T.pack " ") $ libTestEntries l) $ assertLib l

@@ -4,7 +4,6 @@ module Main (main) where
 import           Prelude ()
 import           Prelude.Compat hiding (exp)
 import           System.IO (hSetEncoding, stdout, stderr, utf8)
-import           System.Process (readProcess)
 import           Test.Hspec
 
 import qualified Test.CoreFn
@@ -14,12 +13,9 @@ import qualified Test.Lib
 #ifdef TEST_CORE_LIBS
 import qualified Test.CoreLib
 #endif
-import           Test.Utils
 
 main :: IO ()
 main = do
-  readProcess pursExe ["--version"] "" >>= putStrLn . (\v -> "\npurs version: " ++ v)
-
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 
