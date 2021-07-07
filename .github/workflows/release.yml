@@ -12,8 +12,9 @@ on:
   push:
     tags:
     - 'v*'
+  workflow_dispatch:
 
-name: Upload Release Assets
+name: Release Workflow
 
 jobs:
   build:
