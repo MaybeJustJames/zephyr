@@ -78,7 +78,7 @@ dceForeignOpt = Opts.switch $
      Opts.short 'f'
   <> Opts.long "dce-foreign"
   <> Opts.showDefault
-  <> Opts.help "dce foriegn modules"
+  <> Opts.help "dce foreign modules"
 
 comments :: Opts.Parser Bool
 comments = Opts.switch $
