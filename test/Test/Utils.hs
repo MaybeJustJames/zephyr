@@ -80,7 +80,6 @@ pursCompile coreLibTestRepo = do
           , "--codegen" , "corefn"
           , "bower_components/purescript-*/src/**/*.purs"
           , "src/**/*.purs"
-          , "test/**/*.purs"
           ]
           ""
     when (ecPurs /= ExitSuccess) (throwError $ PursError coreLibTestRepo ecPurs errPurs)
