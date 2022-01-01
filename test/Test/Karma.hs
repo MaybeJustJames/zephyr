@@ -2,11 +2,8 @@ module Test.Karma (spec) where
 
 import           Prelude ()
 import           Prelude.Compat hiding (exp)
-import           Control.Monad (when)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
-import           Data.List (init)
-import           Data.Foldable (forM_)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.Directory (setCurrentDirectory)

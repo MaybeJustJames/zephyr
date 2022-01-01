@@ -5,6 +5,8 @@ module Test.Eval (spec) where
 import Prelude ()
 import Prelude.Compat
 
+import qualified Data.Map as Map
+
 import Language.PureScript.AST.Literals
 import Language.PureScript.AST.SourcePos
 import Language.PureScript.CoreFn
@@ -42,15 +44,15 @@ mp = "src/Test.purs"
 
 dceEvalExpr' :: Expr Ann -> [Module Ann] -> Expr Ann
 dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, unsafeCoerceMod] ++ mods) of
-    ((Module _ _ _ _ _ _ _ [NonRec _ _ e', _]) : _) -> e'
+    ((Module _ _ _ _ _ _ _ _ [NonRec _ _ e', _]) : _) -> e'
     _                                               -> error "not supported"
   where
-  testMod = Module ss [] mn mp [] [] []
+  testMod = Module ss [] mn mp [] [] Map.empty []
     [ NonRec ann (Ident "v") e
     , NonRec ann (Ident "f")
         (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "x"))))
     ]
-  eqMod = Module ss [] C.eqMod "" [] []
+  eqMod = Module ss [] C.eqMod "" [] [] Map.empty
     [ Ident "refEq" ]
     [ NonRec ann (Ident "eq")
         (Abs ann (Ident "dictEq")
@@ -65,17 +67,17 @@ dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, u
         (Abs ann (Ident "eq")
           (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified Nothing (Ident "eq")))])))
     ]
-  booleanMod = Module ss [] (ModuleName "Data.Boolean") "" [] [] []
+  booleanMod = Module ss [] (ModuleName "Data.Boolean") "" [] [] Map.empty []
     [ NonRec ann (Ident "otherwise") (Literal ann (BooleanLiteral True)) ]
   arrayMod = Module ss [] (ModuleName "Data.Array") ""
-    [] [] []
+    [] [] Map.empty []
     [ NonRec ann (Ident "index")
         (Abs ann (Ident "as")
           (Abs ann (Ident "ix")
             (Literal ann (CharLiteral 'f'))))
     ]
   unsafeCoerceMod = Module ss [] C.unsafeCoerce ""
-    [] [] []
+    [] [] Map.empty []
     [ NonRec ann (Ident "unsafeCoerce")
         (Abs ann (Ident "x")
           (Var ann (Qualified Nothing (Ident "x"))))
@@ -222,6 +224,7 @@ spec =
             "src/Utils.purs"
             []
             [Ident "isProduction"]
+            Map.empty
             []
             [NonRec ann (Ident "isProduction") (Literal ann (BooleanLiteral True))]
           e :: Expr Ann
@@ -238,11 +241,12 @@ spec =
             "src/Main.purs"
             []
             []
+            Map.empty
             []
             [NonRec ann (Ident "main") e]
       -- TODO
       case evaluate [mm, um] of
-        ((Module _ _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _) -> return ()
+        ((Module _ _ _ _ _ _ _ _ [NonRec _ (Ident "main") (Literal _ (CharLiteral 't'))]) : _) -> return ()
         r -> assertFailure $ "unexpected result:\n" ++ show r
         -- Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -282,7 +286,7 @@ spec =
 
     context "Var inlining" $ do
       let oModName = ModuleName "Other"
-          oMod = Module ss [] oModName "" [] [] []
+          oMod = Module ss [] oModName "" [] [] Map.empty []
             [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just C.eqMod) (Ident "eq"))) ])
             , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just C.eqMod) (Ident "eq")) ])
             , NonRec ann (Ident "s") $ Literal ann (StringLiteral (mkString "very-long-string"))
