@@ -9,8 +9,7 @@ import Control.Monad
 import Control.Monad.Writer
 
 import Data.List (find)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Monoid (First(..))
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Language.PureScript.DCE.Constants as C
 import Prelude.Compat hiding (mod)

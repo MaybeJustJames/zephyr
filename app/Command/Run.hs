@@ -26,13 +26,11 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as BSL.Char8 (unpack)
 import qualified Data.ByteString.Lazy.UTF8 as BU8
 import           Data.Bool (bool)
-import           Data.Either (Either, lefts, rights, partitionEithers)
+import           Data.Either (lefts, rights, partitionEithers)
 import           Data.Foldable (for_, traverse_)
-import           Data.List (null)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Maybe (isNothing, listToMaybe)
-import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as TE

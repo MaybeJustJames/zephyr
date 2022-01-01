@@ -10,7 +10,6 @@ import           Prelude.Compat
 import           Control.Monad
 import           Data.Graph
 import           Data.Foldable (foldr')
-import           Data.List (any, elem, filter)
 import           Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T

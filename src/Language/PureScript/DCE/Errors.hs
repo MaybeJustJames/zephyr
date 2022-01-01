@@ -20,7 +20,6 @@ import Prelude.Compat
 
 import           Data.Char (isLower, isUpper, isSpace)
 import           Data.List (dropWhileEnd, findIndex, intersperse)
-import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Formatting (sformat, string, stext, (%))
