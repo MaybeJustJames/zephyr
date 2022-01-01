@@ -57,7 +57,6 @@ library
       -Wincomplete-uni-patterns
       -Wpartial-fields
       -Wredundant-constraints
-      -fmax-pmcheck-iterations=4000000
   exposed-modules:
       Language.PureScript.DCE
     , Language.PureScript.DCE.Constants
@@ -67,8 +66,8 @@ library
     , Language.PureScript.DCE.Eval
     , Language.PureScript.DCE.Utils
   build-depends:
-      aeson               >=1.0      && <1.5
-    , ansi-terminal       >=0.7.1    && <0.11
+      aeson               >=1.0      && <1.6
+    , ansi-terminal       >=0.7.1    && <0.12
     , base                >=4.8      && <5
     , base-compat         >=0.6.0
     , boxes               ^>=0.1.4
@@ -76,7 +75,8 @@ library
     , formatting
     , language-javascript >=0.7.0    && <0.8
     , mtl                 >=2.1.0    && <2.3.0
-    , purescript          ^>=0.13.8
+    , purescript          ^>=0.14.0
+    , purescript-cst
     , safe                ^>=0.3.9
     , text
   default-language:    Haskell2010
@@ -121,8 +121,9 @@ executable zephyr
     , Glob                 >=0.9      && <0.11
     , language-javascript
     , mtl                  >=2.1.0    && <2.3.0
-    , optparse-applicative >=0.13.0
-    , purescript           >=0.13.8
+    , optparse-applicative >=0.13.0   && <0.16
+    , purescript           ^>=0.14.0
+    , purescript-cst
     , text
     , transformers         >=0.3.0    && <0.6
     , utf8-string          >=1        && <2
@@ -159,9 +160,10 @@ test-suite zephyr-test
     , HUnit
     , language-javascript
     , mtl                  >=2.1.0    && <2.3.0
-    , optparse-applicative >=0.13.0
+    , optparse-applicative >=0.13.0   && <0.16
     , process
-    , purescript           ^>=0.13.8
+    , purescript           ^>=0.14
+    , purescript-cst
     , QuickCheck           >=2.12.1
     , text
     , transformers         >=0.3.0    && <0.6

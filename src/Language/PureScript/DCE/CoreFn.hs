@@ -10,7 +10,7 @@ import           Control.Arrow ((***))
 import           Control.Monad
 import           Data.Graph
 import           Data.Foldable (foldl', foldr')
-import           Data.List (any, elem, filter, groupBy, sortBy)
+import           Data.List (groupBy, sortBy)
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import           Language.PureScript.CoreFn
@@ -48,7 +48,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
                         , moduleImports
                         , moduleName
                         , moduleForeign
-                        } = 
+                        } =
       let
           -- | filter declarations preserving the order
           moduleDecls' :: [Bind Ann]
@@ -97,7 +97,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
     -- | The Vertex set.
     verts :: [(DCEVertex, Key, [Key])]
     verts = do
-        Module _ _ mn _ _ _ mf ds <- modules
+        Module _ _ mn _ _ _ _ mf ds <- modules
         concatMap (toVertices mn) ds
           ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
       where
@@ -111,23 +111,71 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
 
       -- | Find dependencies of an expression.
       deps :: Expr Ann -> [Key]
-      deps = go
+      deps = traverseExpr
         where
-          (_, go, _, _) = everythingOnValues (++)
-            (const [])
-            onExpr
-            onBinder
-            (const [])
-
           -- | Build graph from qualified identifiers.
           onExpr :: Expr Ann -> [Key]
           onExpr (Var _ i) = [i | isQualified i]
           onExpr _ = []
 
+          traverseExpr :: Expr Ann -> [Key]
+          traverseExpr v@(Literal _ l) =
+            foldl
+              (++)
+              (onExpr v)
+              (map traverseExpr (extractLiteral l))
+          traverseExpr v@Constructor {} = onExpr v
+          traverseExpr v@(Accessor _ _ e1) = onExpr v ++ traverseExpr e1
+          traverseExpr v@(ObjectUpdate _ obj vs) =
+            foldl
+              (++)
+              (onExpr v ++ traverseExpr obj)
+              (map (traverseExpr . snd) vs)
+          traverseExpr v@(Abs _ _ e1) = onExpr v ++ traverseExpr e1
+          traverseExpr v@(App _ e1 e2) =
+            onExpr v ++ traverseExpr e1 ++ traverseExpr e2
+          traverseExpr v@(Var _ _) = onExpr v
+          traverseExpr v@(Case _ vs alts) =
+            foldl
+              (++)
+              (foldl (++) (onExpr v) (map traverseExpr vs))
+              (map onCaseAlternative alts)
+          traverseExpr v@(Let _ ds e1) =
+            foldl
+              (++)
+              (onExpr v)
+              (map onBind ds)
+            ++
+              traverseExpr e1
+
+          onBind :: Bind Ann -> [Key]
+          onBind (NonRec _ _ e) = traverseExpr e
+          onBind (Rec es) = concatMap (traverseExpr . snd) es
+
           onBinder :: Binder Ann -> [Key]
+          onBinder (LiteralBinder _ l) = concatMap onBinder (extractLiteral l)
           onBinder (ConstructorBinder _ _ c _) =
-            [fmap (Ident . runProperName) c]
+            [Ident . runProperName <$> c]
+          onBinder (NamedBinder _ _ b1) = onBinder b1
           onBinder _ = []
+
+          onCaseAlternative :: CaseAlternative Ann -> [Key]
+          onCaseAlternative (CaseAlternative bs (Right val)) =
+            concatMap onBinder bs ++ traverseExpr val
+          onCaseAlternative (CaseAlternative bs (Left gs)) =
+            concat
+              (map
+                 onBinder
+                 bs ++ concatMap
+                         (\(grd, val) ->
+                            [traverseExpr grd, traverseExpr val]) gs)
+
+          -- @f@ is either 'Exrp' or 'Binder'
+          extractLiteral :: Literal (f Ann) -> [f Ann]
+          extractLiteral (ArrayLiteral xs) = xs
+          extractLiteral (ObjectLiteral xs) = map snd xs
+          extractLiteral _ = []
+
 
     -- | Vertices corresponding to the entry points which we want to keep.
     entryPointVertices :: [Vertex]
