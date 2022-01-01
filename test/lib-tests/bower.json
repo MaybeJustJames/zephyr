@@ -15,9 +15,9 @@
     "tests"
   ],
   "dependencies": {
-    "purescript-arrays": "^5.0.0",
-    "purescript-unsafe-coerce": "^4.0.0",
-    "purescript-prelude": "^4.1.0",
-    "purescript-maybe": "^4.0.0"
+    "purescript-arrays": "^6.0.0",
+    "purescript-unsafe-coerce": "^5.0.0",
+    "purescript-prelude": "^5.0.0",
+    "purescript-maybe": "^5.0.0"
   }
 }
