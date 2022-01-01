@@ -1,6 +1,5 @@
 module Main (main) where
 
-import           Data.Monoid ((<>))
 import           Data.Version (showVersion)
 import qualified Options.Applicative as Opts
 import qualified Paths_zephyr as Paths
