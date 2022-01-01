@@ -42,6 +42,20 @@ libTests =
       <> " }\n"
       )
       True
+  , LibTest ["Literals.fromAnArray"] Nothing
+       ( " var lits = require('./dce-output/Literals');\n"
+      <> " if (lits.fromAnArray == null || lits.AStr == null || lits.AInt != null) {\n"
+      <> "    throw('Error')\n"
+      <> " }\n"
+      )
+      True
+  , LibTest ["Literals.fromAnObject"] Nothing
+       ( " var lits = require('./dce-output/Literals');\n"
+      <> " if (lits.fromAnObject == null || lits.AStr == null || lits.AInt != null) {\n"
+      <> "    throw('Error')\n"
+      <> " }\n"
+      )
+      True
   ]
 
 
