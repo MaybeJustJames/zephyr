@@ -2,13 +2,10 @@ module Test.Lib (spec) where
 
 import           Prelude ()
 import           Prelude.Compat hiding (exp)
-import           Control.Monad (when)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
-import           Data.Foldable (forM_)
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Semigroup ((<>))
 import           System.Exit (ExitCode(..))
 import           System.Process (readProcessWithExitCode)
 import           Test.Hspec

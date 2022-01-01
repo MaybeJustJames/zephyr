@@ -3,7 +3,7 @@ module Test.CoreFn (spec)  where
 import Prelude ()
 import Prelude.Compat
 
-import Data.List (concatMap, foldl', intersect)
+import Data.List (foldl', intersect)
 import qualified Data.List as L
 
 import Language.PureScript.AST.Literals

@@ -2,11 +2,9 @@ module Test.CoreLib (spec) where
 
 import           Prelude ()
 import           Prelude.Compat hiding (exp)
-import           Control.Monad (when)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
-import           Data.Foldable (forM_)
-import           Data.Maybe (fromJust, isJust, maybe)
+import           Data.Maybe (fromJust, isJust)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.Directory (setCurrentDirectory)
