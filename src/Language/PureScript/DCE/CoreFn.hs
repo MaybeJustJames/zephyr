@@ -120,14 +120,14 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
 
           traverseExpr :: Expr Ann -> [Key]
           traverseExpr v@(Literal _ l) =
-            foldl
+            foldl'
               (++)
               (onExpr v)
               (map traverseExpr (extractLiteral l))
           traverseExpr v@Constructor {} = onExpr v
           traverseExpr v@(Accessor _ _ e1) = onExpr v ++ traverseExpr e1
           traverseExpr v@(ObjectUpdate _ obj vs) =
-            foldl
+            foldl'
               (++)
               (onExpr v ++ traverseExpr obj)
               (map (traverseExpr . snd) vs)
@@ -136,12 +136,12 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
             onExpr v ++ traverseExpr e1 ++ traverseExpr e2
           traverseExpr v@(Var _ _) = onExpr v
           traverseExpr v@(Case _ vs alts) =
-            foldl
+            foldl'
               (++)
-              (foldl (++) (onExpr v) (map traverseExpr vs))
+              (foldl' (++) (onExpr v) (map traverseExpr vs))
               (map onCaseAlternative alts)
           traverseExpr v@(Let _ ds e1) =
-            foldl
+            foldl'
               (++)
               (onExpr v)
               (map onBind ds)
