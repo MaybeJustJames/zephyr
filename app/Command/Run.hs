@@ -271,11 +271,11 @@ dceCommand Options { optEntryPoints
                     -- run `runForeignModuleDeadCodeElimination`
                     Just path | optForeign  -> do
                       jsCode <- BSL.Char8.unpack <$> BSL.readFile path
-                      case JS.parse jsCode path of
+                      case JS.parseModule jsCode path of
                         Left _ -> return ()
-                        Right (JS.JSAstProgram ss ann) ->
-                          let ss'    = DCE.runForeignModuleDeadCodeElimination moduleForeign ss
-                              jsAst' = JS.JSAstProgram ss' ann
+                        Right (JS.JSAstModule items ann) ->
+                          let items'    = DCE.runForeignModuleDeadCodeElimination moduleForeign items
+                              jsAst' = JS.JSAstModule items' ann
                               foreignFile = optOutputDir
                                         </> T.unpack (P.runModuleName moduleName)
                                         </> "foreign.js"

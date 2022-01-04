@@ -7,16 +7,32 @@ module Language.PureScript.DCE.CoreFn
 
 import           Prelude.Compat hiding (mod)
 import           Control.Arrow ((***))
-import           Control.Monad
-import           Data.Graph
+import Control.Monad ( guard )
+import Data.Graph ( graphFromEdges, reachable, Vertex )
 import           Data.Foldable (foldl', foldr')
 import           Data.List (groupBy, sortBy)
 import qualified Data.Map.Strict as M
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
-import           Language.PureScript.CoreFn
+import Language.PureScript.CoreFn
+    ( Literal(ObjectLiteral, ArrayLiteral),
+      Ann,
+      everywhereOnValues,
+      Binder(VarBinder, LiteralBinder, ConstructorBinder, NamedBinder),
+      Bind(..),
+      CaseAlternative(CaseAlternative),
+      Expr(..),
+      Module(Module, moduleImports, moduleExports, moduleForeign,
+             moduleDecls, moduleName) )
 import           Language.PureScript.DCE.Utils (bindIdents, unBind)
-import           Language.PureScript.Names
+import Language.PureScript.Names
+    ( getQual,
+      isQualified,
+      mkQualified,
+      Ident(Ident),
+      ModuleName,
+      ProperName(runProperName),
+      Qualified(..) )
 
 type Key = Qualified Ident
 
@@ -42,7 +58,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
     -- DCE of a single module.
     runModuleDeadCodeElimination
       :: [(DCEVertex, Key, [Key])]
-      -- list of qualified names that has to be preserved
+      -- list of qualified names that need to be preserved
       -> Module Ann
       -> Module Ann
     runModuleDeadCodeElimination vs mod@Module{ moduleDecls

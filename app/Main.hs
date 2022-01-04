@@ -6,8 +6,8 @@ import qualified Paths_zephyr as Paths
 import           System.Environment (getArgs)
 import qualified System.IO as IO
 
-import           Command.Run
-import           Command.Options
+import Command.Run ( runZephyr )
+import Command.Options ( parseOptions )
 
 
 main :: IO ()
