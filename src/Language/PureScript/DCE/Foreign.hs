@@ -7,8 +7,8 @@ module Language.PureScript.DCE.Foreign
   ) where
 
 import           Prelude.Compat
-import           Control.Monad
-import           Data.Graph
+import Control.Monad ( guard )
+import Data.Graph ( graphFromEdges, path, Vertex )
 import           Data.Foldable (foldr')
 import           Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import           Data.Text (Text)
@@ -28,9 +28,9 @@ import           Language.JavaScript.Parser.AST
                   , JSMethodDefinition(..)
                   , JSClassElement(..)
                   , JSClassHeritage(..)
-                  , JSTemplatePart(..)
+                  , JSTemplatePart(..), JSModuleItem (JSModuleStatementListItem)
                   )
-import           Language.PureScript.Names
+import Language.PureScript.Names ( runIdent, Ident )
 
 -- | foldr over `JSCommaList`
 foldrJSCommaList :: (a -> b -> b) -> JSCommaList a -> b -> b
@@ -42,44 +42,44 @@ foldrJSCommaList fn (JSLCons as _ a) !b = foldrJSCommaList fn as (fn a b)
 -- might remove declarations that are used somewhere in the foreign module (for
 -- example by using @'eval'@).
 --
-runForeignModuleDeadCodeElimination :: [Ident] -> [JSStatement] -> [JSStatement]
-runForeignModuleDeadCodeElimination is stmts = filter filterExports stmts
+runForeignModuleDeadCodeElimination :: [Ident] -> [JSModuleItem] -> [JSModuleItem]
+runForeignModuleDeadCodeElimination is items = filter filterExports items
   where
-    filterExports :: JSStatement -> Bool
-    filterExports (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ x) _) _ _ _)
+    filterExports :: JSModuleItem -> Bool
+    filterExports (JSModuleStatementListItem (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ x) _) _ _ _))
       = fltr (unquote . T.pack $ x)
-    filterExports (JSAssignStatement (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ x)) _ _ _)
+    filterExports (JSModuleStatementListItem (JSAssignStatement (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ x)) _ _ _))
       = fltr (T.pack x)
     filterExports _ = True
 
     fltr :: Text -> Bool
     fltr t = any (fromMaybe True . (path graph <$> vertexForKey t <*>) . Just) entryPointVertices
           -- one of `entryPointVertices` depend on this vertex
-          || any (isUsedInStmt t) nonExps
+          || any (isUsedInItem t) nonExps
           -- it is used in any non export statements
 
     -- Build a graph of exports statements.  Its initial set of edges point from
     -- an export statement to all other export statements that are using it.
     -- When checking if we need to include that vartex we just check if there is
     -- a path from a vertex to one of `entryPointVertices`.
-    exps :: [JSStatement]
-    exps = filter isExportStatement stmts
+    exps :: [JSModuleItem]
+    exps = filter isExportStatement items
 
-    nonExps = filter (not . isExportStatement) stmts
+    nonExps = filter (not . isExportStatement) items
 
     (graph, _, vertexForKey) = graphFromEdges verts
 
-    verts :: [(JSStatement, Text, [Text])]
+    verts :: [(JSModuleItem, Text, [Text])]
     verts = mapMaybe toVert exps
       where
-      toVert :: JSStatement -> Maybe (JSStatement, Text, [Text])
-      toVert s
-        | Just name <- exportStatementName s = Just (s, name, foldr' (fn name) [] exps)
+      toVert :: JSModuleItem -> Maybe (JSModuleItem, Text, [Text])
+      toVert item
+        | Just name <- exportStatementName item = Just (item, name, foldr' (fn name) [] exps)
         | otherwise = Nothing
 
-      fn name s' nms
-        | isUsedInStmt name s'
-        , Just n <- exportStatementName s' = n:nms
+      fn name item' nms
+        | isUsedInItem name item'
+        , Just n <- exportStatementName item' = n:nms
         | otherwise = nms
 
     entryPointVertices :: [Vertex]
@@ -93,15 +93,19 @@ runForeignModuleDeadCodeElimination is stmts = filter filterExports stmts
     unquote :: Text -> Text
     unquote = T.drop 1 . T.dropEnd 1
 
-    isExportStatement :: JSStatement -> Bool
-    isExportStatement (JSAssignStatement (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ _)) _ _ _) = True
-    isExportStatement (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ _) _) _ _ _) = True
+    isExportStatement :: JSModuleItem -> Bool
+    isExportStatement (JSModuleStatementListItem (JSAssignStatement (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ _)) _ _ _)) = True
+    isExportStatement (JSModuleStatementListItem (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ _) _) _ _ _)) = True
     isExportStatement _ = False
 
-    exportStatementName :: JSStatement -> Maybe Text
-    exportStatementName (JSAssignStatement (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ i)) _ _ _) = Just . T.pack $ i
-    exportStatementName (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ i) _) _ _ _) = Just . unquote . T.pack $ i
+    exportStatementName :: JSModuleItem -> Maybe Text
+    exportStatementName (JSModuleStatementListItem (JSAssignStatement (JSMemberDot (JSIdentifier _ "exports") _ (JSIdentifier _ i)) _ _ _)) = Just . T.pack $ i
+    exportStatementName (JSModuleStatementListItem (JSAssignStatement (JSMemberSquare (JSIdentifier _ "exports") _ (JSStringLiteral _ i) _) _ _ _)) = Just . unquote . T.pack $ i
     exportStatementName _ = Nothing
+
+    isUsedInItem :: Text -> JSModuleItem -> Bool
+    isUsedInItem n (JSModuleStatementListItem stmt) = isUsedInStmt n stmt
+    isUsedInItem _ _ = False
 
     -- Check if (export) identifier is used within a JSStatement.
     isUsedInStmt :: Text -> JSStatement -> Bool
@@ -146,7 +150,7 @@ runForeignModuleDeadCodeElimination is stmts = filter filterExports stmts
     isUsedInStmt n (JSExpressionStatement e _) = isUsedInExpr n e
     isUsedInStmt n (JSAssignStatement e1 _ e2 _) = isUsedInExpr n e1 || isUsedInExpr n e2
     isUsedInStmt n (JSMethodCall e _ es _ _) = isUsedInExpr n e || isUsedInExprs n es
-    isUsedInStmt n (JSReturn _ me _) = fromMaybe False (isUsedInExpr n <$> me)
+    isUsedInStmt n (JSReturn _ me _) = maybe False (isUsedInExpr n) me
     isUsedInStmt n (JSSwitch _ _ e _ _ sps _ _) = isUsedInExpr n e || any (isUsedInSwitchParts n) sps
     isUsedInStmt n (JSThrow _ e _) = isUsedInExpr n e
     isUsedInStmt n (JSTry _ (JSBlock _ ss _) cs f) = any (isUsedInStmt n) ss || any (isUsedInTryCatch n) cs || isUsedInFinally n f

@@ -75,7 +75,7 @@ library
     , formatting
     , language-javascript >=0.7.0    && <0.8
     , mtl                 >=2.1.0    && <2.3.0
-    , purescript          ^>=0.14.0
+    , purescript          ^>=0.15.0
     , purescript-cst
     , safe                ^>=0.3.9
     , text
@@ -121,8 +121,8 @@ executable zephyr
     , Glob                 >=0.9      && <0.11
     , language-javascript
     , mtl                  >=2.1.0    && <2.3.0
-    , optparse-applicative >=0.13.0   && <0.16
-    , purescript           ^>=0.14.0
+    , optparse-applicative ==0.16.1.0
+    , purescript           ^>=0.15.0
     , purescript-cst
     , text
     , transformers         >=0.3.0    && <0.6
@@ -160,9 +160,9 @@ test-suite zephyr-test
     , HUnit
     , language-javascript
     , mtl                  >=2.1.0    && <2.3.0
-    , optparse-applicative >=0.13.0   && <0.16
+    , optparse-applicative ==0.16.1.0
     , process
-    , purescript           ^>=0.14
+    , purescript           ^>=0.15
     , purescript-cst
     , QuickCheck           >=2.12.1
     , text
@@ -192,4 +192,4 @@ test-suite zephyr-test
 
 source-repository head
   type:     git
-  location: https://github.com/coot/zephyr
+  location: https://github.com/working-group-purescript-es/zephyr

@@ -6,8 +6,8 @@ import qualified Paths_zephyr as Paths
 import           System.Environment (getArgs)
 import qualified System.IO as IO
 
-import           Command.Run
-import           Command.Options
+import Command.Run ( runZephyr )
+import Command.Options ( parseOptions )
 
 
 main :: IO ()
@@ -21,8 +21,8 @@ main = do
     >>= runZephyr
   where
     execParserPure :: Opts.ParserInfo a -> [String] -> Opts.ParserResult a
-    execParserPure pinfo [] = Opts.Failure $
-      Opts.parserFailure Opts.defaultPrefs pinfo Opts.ShowHelpText mempty
+    execParserPure pinfo [] = Opts.Failure $ 
+      Opts.parserFailure Opts.defaultPrefs pinfo (Opts.ShowHelpText Nothing) mempty
     execParserPure pinfo args = Opts.execParserPure Opts.defaultPrefs pinfo args
 
 versionOpt :: Opts.Parser (a -> a)
