@@ -9,7 +9,6 @@ import           Test.Hspec
 import qualified Test.CoreFn
 import qualified Test.Eval
 import qualified Test.Lib
--- TODO: it shouldn't be a CPP FLAG
 #ifdef TEST_CORE_LIBS
 import qualified Test.CoreLib
 #endif
@@ -22,6 +21,8 @@ main = do
   hspec Test.CoreFn.spec
   hspec Test.Eval.spec
   hspec Test.Lib.spec
+-- Tree shaking of core libraries is disabled by default because it's not
+-- reliable.
 #ifdef TEST_CORE_LIBS
   hspec Test.CoreLib.spec
 #endif
