@@ -43,16 +43,14 @@ jobs:
         npm --version
         spago --version
     - name: Cache
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
+      uses: actions/cache@v2
       with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        path: |
+          ${{ steps.setup-haskell-build-env.outputs.cabal-store }}
+          dist-newstyle
+        key: ${{ runner.os }}-build-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+          ${{ runner.os }}-build
     - name: Update cabal
       run: cabal update
     - uses: actions/checkout@v2
