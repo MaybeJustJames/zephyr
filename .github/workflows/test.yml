@@ -35,13 +35,13 @@ jobs:
     - uses: actions/setup-node@v1
       with:
         node-version: '16'
-    - name: Install bower
-      run: npm install --global bower
+    - name: Install spago
+      run: npm install --global spago
     - name: Check versions
       run: |
         node --version
         npm --version
-        bower --version
+        spago --version
     - name: Cache
       uses: actions/cache@v1
       env:
