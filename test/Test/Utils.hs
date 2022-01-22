@@ -32,7 +32,7 @@ test_prg = "stack"
 test_args = ["exec", "zephyr", "--"]
 #endif
 
-pursExe, bowerExe, npmExe, nodeExe, gitExe :: String
+pursExe, bowerExe, npmExe, nodeExe, gitExe, spagoExe :: String
 #if !defined(mingw32_HOST_OS)
 pursExe  = "purs"
 gitExe   = "git"
@@ -44,6 +44,7 @@ nodeExe  = "node.exe"
 #endif
 bowerExe = "bower"
 npmExe   = "npm"
+spagoExe = "spago"
 
 
 changeDir :: FilePath -> Spec -> Spec
@@ -66,6 +67,20 @@ bowerInstall coreLibTestRepo = do
     (ecBower, _, errBower) <- lift $ readProcessWithExitCode bowerExe ["install"] ""
     when (ecBower /= ecBower) (throwError (BowerError coreLibTestRepo ecBower errBower))
 
+spagoBuild
+  :: Text
+  -> ExceptT TestError IO ()
+spagoBuild coreLibTestRepo = do
+  outputDirExists <- lift $ doesDirectoryExist "output"
+  unless outputDirExists $ do
+    (ecSpago, _, errSpago) <- lift
+      $ readProcessWithExitCode
+          spagoExe
+          [ "build"
+          , "--purs-args" , "--codegen corefn,js"
+          ]
+          ""
+    when (ecSpago /= ExitSuccess) (throwError $ SpagoError coreLibTestRepo ecSpago errSpago)
 
 pursCompile
   :: Text
@@ -140,6 +155,7 @@ data TestError
   | ZephyrError Text ExitCode String
   | NodeError Text ExitCode String String
   | JsCmdError Text Text
+  | SpagoError Text ExitCode String
   deriving (Eq)
 
 instance Show TestError where
@@ -160,3 +176,5 @@ instance Show TestError where
   show (NodeError repo ec std err)
     = "node failed \"" ++ T.unpack repo ++ "\" (" ++ show ec ++ ")\n\n" ++ std ++ "\n\n" ++ err
   show (JsCmdError exp got) = "expected:\n\n" ++ T.unpack exp ++ "\n\nbut got:\n\n" ++ T.unpack got ++ "\n"
+  show (SpagoError repo ec err)
+    = "spago build failed \"" ++ T.unpack repo ++ "\" (" ++ show ec ++ ")\n" ++ err
