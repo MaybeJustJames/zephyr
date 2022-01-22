@@ -81,4 +81,4 @@ jobs:
       if: matrix.os == 'windows-latest'
       # We dont' run `-m test-lib` as on posix; Getting bower path on Windows
       # recognised by `readProcessWithExitCode` is impossible.
-      run: cabal run zephyr-test -- -m generators -m evaluate -m corefn
+      run: cabal run zephyr-test -- -m generators -m evaluate -m corefn -m test-lib
