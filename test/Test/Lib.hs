@@ -56,6 +56,9 @@ libTests =
       <> " }\n"
       )
       True
+  , LibTest ["Reexp"] Nothing
+      "var rexp = require('./dce-output/Reexp');\n"
+      True
   ]
 
 

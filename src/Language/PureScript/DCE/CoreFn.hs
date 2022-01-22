@@ -11,6 +11,7 @@ import           Control.Monad
 import           Data.Graph
 import           Data.Foldable (foldl', foldr')
 import           Data.List (groupBy, sortBy)
+import           Data.Map.Strict (Map)
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import           Language.PureScript.CoreFn
@@ -45,6 +46,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
       -> Module Ann
     runModuleDeadCodeElimination vs mod@Module{ moduleDecls
                         , moduleExports
+                        , moduleReExports
                         , moduleImports
                         , moduleName
                         , moduleForeign
@@ -71,6 +73,10 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
           moduleExports' =
             filter (`elem` (idents ++ moduleForeign')) moduleExports
 
+          moduleReExports' :: Map ModuleName [Ident]
+          moduleReExports' =
+            filter (`elem` idents) <$> moduleReExports
+
           mods :: [ModuleName]
           mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
 
@@ -88,6 +94,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
 
       in mod { moduleImports = moduleImports'
              , moduleExports = moduleExports'
+             , moduleReExports = moduleReExports'
              , moduleForeign = moduleForeign'
              , moduleDecls   = moduleDecls'
              }
