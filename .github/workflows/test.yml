@@ -35,24 +35,22 @@ jobs:
     - uses: actions/setup-node@v1
       with:
         node-version: '16'
-    - name: Install bower
-      run: npm install --global bower
+    - name: Install spago
+      run: npm install --global spago
     - name: Check versions
       run: |
         node --version
         npm --version
-        bower --version
+        spago --version
     - name: Cache
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
+      uses: actions/cache@v2
       with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        path: |
+          ${{ steps.setup-haskell-build-env.outputs.cabal-store }}
+          dist-newstyle
+        key: ${{ runner.os }}-build-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+          ${{ runner.os }}-build
     - name: Update cabal
       run: cabal update
     - uses: actions/checkout@v2
@@ -81,6 +79,6 @@ jobs:
 
     - name: Run tests (windows)
       if: matrix.os == 'windows-latest'
-      # We dont' run `-m test-lib` as on posix; Getting bower path on Windows
+      # We dont' run `-m test-lib` as on posix; Getting bower/spago path on Windows
       # recognised by `readProcessWithExitCode` is impossible.
       run: cabal run zephyr-test -- -m generators -m evaluate -m corefn
