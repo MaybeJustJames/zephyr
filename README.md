@@ -1,5 +1,5 @@
 # zephyr
-[![Maintainer: coot](https://img.shields.io/badge/maintainer-coot-lightgrey.svg)](http://github.com/coot)
+[![Maintainer: MaybeJustJames](https://img.shields.io/badge/maintainer-MaybeJustJames-lightgrey.svg)](http://github.com/MaybeJustJames)
 ![zephyr](https://github.com/coot/zephyr/workflows/Haskell%20CI/badge.svg)
 
 A tree-shaking tool for [PureScript](https://github.com/purescript/purescript).
