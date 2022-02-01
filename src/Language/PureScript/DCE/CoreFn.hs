@@ -25,7 +25,6 @@ data DCEVertex
   = BindVertex (Bind Ann)
   | ForeignVertex (Qualified Ident)
   | ReExportedVertex (Qualified Ident)
-  deriving (Show)
 
 
 -- | Dead code elimination of a list of modules module
