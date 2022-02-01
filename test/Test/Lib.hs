@@ -1,24 +1,23 @@
 module Test.Lib (spec) where
 
-import           Prelude ()
-import           Prelude.Compat hiding (exp)
-import           Control.Monad.Trans.Class
 import           Control.Monad.Except
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           System.Exit (ExitCode(..))
-import           System.Process (readProcessWithExitCode)
+import           Data.Text                 (Text)
+import qualified Data.Text                 as T
+import           Prelude                   ()
+import           Prelude.Compat            hiding (exp)
+import           System.Exit               (ExitCode (..))
+import           System.Process            (readProcessWithExitCode)
+import           Test.HUnit                (assertEqual)
 import           Test.Hspec
-import           Test.HUnit (assertEqual)
 
 import           Test.Utils
 
 
 data LibTest = LibTest
-  { libTestEntries :: [Text]
+  { libTestEntries       :: [Text]
   , libTestZephyrOptions :: Maybe [Text]
-  , libTestJsCmd :: Text
-  , libTestShouldPass :: Bool
+  , libTestJsCmd         :: Text
+  , libTestShouldPass    :: Bool
   -- ^ true if it should run without error, false if it should error
   }
 
@@ -57,6 +56,7 @@ libTests =
       )
       True
   , LibTest ["Control.Alt.map"] Nothing "require('./dce-output/Control.Alt').map;" True
+  , LibTest ["Data.Array.span"] Nothing "require('./dce-output/Data.Array').span" True
   ]
 
 
