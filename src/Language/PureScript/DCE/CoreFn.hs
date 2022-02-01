@@ -186,11 +186,23 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
           onBind (Rec es) = concatMap (traverseExpr . snd) es
 
           onBinder :: Binder Ann -> [Key]
-          onBinder (LiteralBinder _ l) = concatMap onBinder (extractLiteral l)
-          onBinder (ConstructorBinder _ _ c _) =
-            [Ident . runProperName <$> c]
-          onBinder (NamedBinder _ _ b1) = onBinder b1
-          onBinder _ = []
+          onBinder b@(LiteralBinder _ l) =
+            foldl'
+              (++)
+              (onBinder' b)
+              (map onBinder (extractLiteral l))
+          onBinder b@(ConstructorBinder _ _ _ bs) =
+            foldl'
+              (++)
+              (onBinder' b)
+              (map onBinder bs)
+          onBinder b@(NamedBinder _ _ b1) = onBinder' b ++ onBinder b1
+          onBinder b = onBinder' b
+
+          onBinder' :: Binder Ann -> [Key]
+          onBinder' (ConstructorBinder _ _ c _) =
+            [fmap (Ident . runProperName) c]
+          onBinder' _ = []
 
           onCaseAlternative :: CaseAlternative Ann -> [Key]
           onCaseAlternative (CaseAlternative bs (Right val)) =
@@ -203,7 +215,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
                          (\(grd, val) ->
                             [traverseExpr grd, traverseExpr val]) gs)
 
-          -- @f@ is either 'Exrp' or 'Binder'
+          -- @f@ is either 'Expr' or 'Binder'
           extractLiteral :: Literal (f Ann) -> [f Ann]
           extractLiteral (ArrayLiteral xs) = xs
           extractLiteral (ObjectLiteral xs) = map snd xs
