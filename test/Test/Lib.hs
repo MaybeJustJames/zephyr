@@ -1,7 +1,6 @@
 module Test.Lib (spec) where
 
 import           Control.Monad.Except
-import           Control.Monad.Trans.Class
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           Prelude                   ()
