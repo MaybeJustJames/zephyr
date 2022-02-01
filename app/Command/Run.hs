@@ -183,19 +183,23 @@ getEntryPoints mods = go []
 
     modExports :: P.ModuleName -> [CoreFn.Module CoreFn.Ann] -> [Either EntryPoint (P.Qualified P.Ident)]
     modExports mn [] = [Left (EntryModule mn)]
-    modExports mn (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
+    modExports mn (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports, CoreFn.moduleReExports } : ms)
       | mn == moduleName
-      = (Right . flip P.mkQualified mn) `map` moduleExports
+      = (Right . flip P.mkQualified mn) `map` (moduleExports ++ (snd =<< M.toList moduleReExports))
       | otherwise
       = modExports mn ms
 
     fnd :: P.Qualified P.Ident -> [CoreFn.Module CoreFn.Ann] -> Bool
     fnd _ [] = False
-    fnd qi@(P.Qualified (Just mn) i) (CoreFn.Module{ CoreFn.moduleName, CoreFn.moduleExports } : ms)
-      = if moduleName == mn && i `elem` moduleExports
+    fnd qi@(P.Qualified (Just mn) i) (pModule@CoreFn.Module{ CoreFn.moduleName } : ms)
+      = if moduleName == mn && i `elem` (allExports pModule)
           then True
           else fnd qi ms
     fnd _ _ = False
+
+    allExports :: CoreFn.Module CoreFn.Ann -> [P.Ident]
+    allExports CoreFn.Module{ CoreFn.moduleExports, CoreFn.moduleReExports } =
+      moduleExports ++ (M.toList moduleReExports >>= snd)
 
 
 dceCommand :: Options -> ExceptT DCEAppError IO ()
@@ -241,7 +245,7 @@ dceCommand Options { optEntryPoints
               fn _                   acc = acc
           in throwError (DCEAppError $ EntryPointsNotParsed (foldr fn [] perrs))
 
-    when (null $ entryPoints) $
+    when (null entryPoints) $
       throwError (DCEAppError NoEntryPoint)
 
     -- run `evaluate` and `runDeadCodeElimination` on `CoreFn` representation

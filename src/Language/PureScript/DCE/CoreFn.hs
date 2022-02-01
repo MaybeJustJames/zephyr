@@ -11,6 +11,7 @@ import           Control.Monad
 import           Data.Graph
 import           Data.Foldable (foldl', foldr')
 import           Data.List (groupBy, sortBy)
+import qualified Data.Map.Strict as M
 import           Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import           Language.PureScript.CoreFn
@@ -23,6 +24,8 @@ type Key = Qualified Ident
 data DCEVertex
   = BindVertex (Bind Ann)
   | ForeignVertex (Qualified Ident)
+  | ReExportedVertex (Qualified Ident)
+  deriving (Show)
 
 
 -- | Dead code elimination of a list of modules module
@@ -45,6 +48,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
       -> Module Ann
     runModuleDeadCodeElimination vs mod@Module{ moduleDecls
                         , moduleExports
+                        , moduleReExports
                         , moduleImports
                         , moduleName
                         , moduleForeign
@@ -71,6 +75,17 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
           moduleExports' =
             filter (`elem` (idents ++ moduleForeign')) moduleExports
 
+          moduleReExports' :: M.Map ModuleName [Ident]
+          moduleReExports' =
+            filter (`elem` rexpIdents) <$> moduleReExports
+            where
+              toRexpIdents :: (DCEVertex, Key, [Key]) -> [Ident]
+              toRexpIdents (ReExportedVertex (Qualified _ i), _, _) = [i]
+              toRexpIdents _ = []
+
+              rexpIdents :: [Ident]
+              rexpIdents = concatMap toRexpIdents vs
+
           mods :: [ModuleName]
           mods = mapMaybe getQual (concatMap (\(_, _, ks) -> ks) vs)
 
@@ -88,6 +103,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
 
       in mod { moduleImports = moduleImports'
              , moduleExports = moduleExports'
+             , moduleReExports = moduleReExports'
              , moduleForeign = moduleForeign'
              , moduleDecls   = moduleDecls'
              }
@@ -97,9 +113,10 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
     -- | The Vertex set.
     verts :: [(DCEVertex, Key, [Key])]
     verts = do
-        Module _ _ mn _ _ _ _ mf ds <- modules
-        concatMap (toVertices mn) ds
-          ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf
+        Module _ _ mn _ _ _ rexp mf ds <- modules
+        concatMap (toVertices mn) ds -- Module local bindings
+          ++ ((\q -> (ForeignVertex q, q, [])) . flip mkQualified mn) `map` mf -- Foreign bindings
+          ++ reExportedVertices mn rexp -- Re-exported bindings
       where
       toVertices :: ModuleName -> Bind Ann -> [(DCEVertex, Key, [Key])]
       toVertices mn b@(NonRec _ i e) =
@@ -108,6 +125,23 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
         let ks :: [(Key, [Key])]
             ks = map (\((_, i), e) -> (mkQualified i mn, deps e)) bs
         in map (\(k, ks') -> (BindVertex b, k, map fst ks ++ ks')) ks
+
+      reExportedVertices :: ModuleName -> M.Map ModuleName [Ident] -> [(DCEVertex, Key, [Key])]
+      reExportedVertices parent rexp =
+        filter (isReExported rexp) modules >>= rexpsFor
+        where
+          rexpsFor :: Module Ann -> [(DCEVertex, Key, [Key])]
+          rexpsFor (Module _ _ mn _ _ _ _ _ _) = case M.lookup mn rexp of
+            Nothing -> []
+            Just ids -> (\i -> (ReExportedVertex (mkQualified i parent)
+                              , mkQualified i parent
+                              , [mkQualified i mn])
+                       ) <$> ids
+
+
+      isReExported :: M.Map ModuleName [Ident] -> Module Ann -> Bool
+      isReExported rexps (Module _ _ name _ _ _ _ _ _) =
+        M.member name rexps
 
       -- | Find dependencies of an expression.
       deps :: Expr Ann -> [Key]

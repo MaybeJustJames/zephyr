@@ -56,6 +56,7 @@ libTests =
       <> " }\n"
       )
       True
+  , LibTest ["Control.Alt.map"] Nothing "require('./dce-output/Control.Alt').map;" True
   ]
 
 
