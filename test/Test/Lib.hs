@@ -76,7 +76,7 @@ libTests =
             Nothing
             (  "import * as lits from './dce-output/Literals/index.js';"
             <> "if (lits.fromAnArray == null || lits.AStr == null || lits.AInt != null) {"
-            <> "  throw 'Error';
+            <> "  throw 'Error';"
             <> "}"
             )
             True
@@ -84,7 +84,7 @@ libTests =
             Nothing
             (  "import * as lits from './dce-output/Literals/index.js';"
             <> "if (lits.fromAnObject == null || lits.AStr == null || lits.AInt != null) {"
-            <> "  throw 'Error';
+            <> "  throw 'Error';"
             <> "}"
             )
             True
@@ -109,7 +109,7 @@ assertLib l = do
 runLibTest :: LibTest -> ExceptT TestError IO ()
 runLibTest LibTest { libTestEntries
                    , libTestZephyrOptions
-                   , libTestJsFilename
+                   , libTestJs
                    , libTestShouldPass
                    } = do
   spagoBuild "LibTest"

@@ -192,4 +192,4 @@ test-suite zephyr-test
 
 source-repository head
   type:     git
-  location: https://github.com/working-group-purescript-es/zephyr
+  location: https://github.com/MaybeJustJames/zephyr
