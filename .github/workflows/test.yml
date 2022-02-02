@@ -42,12 +42,12 @@ jobs:
         node --version
         npm --version
         spago --version
-        echo ${{ steps.setup-haskell-build-env.outputs.cabal-store }}
+        echo ${{ steps.setup-haskell.outputs.cabal-store }}
     - name: Cache
       uses: actions/cache@v2
       with:
         path: |
-          ${{ steps.setup-haskell-build-env.outputs.cabal-store }}
+          ${{ steps.setup-haskell.outputs.cabal-store }}
           dist-newstyle
         key: ${{ runner.os }}-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: |
