@@ -23,7 +23,7 @@ import Language.PureScript.CoreFn
       CaseAlternative(CaseAlternative),
       Expr(..),
       Module(Module, moduleImports, moduleExports, moduleForeign,
-             moduleDecls, moduleName) )
+             moduleDecls, moduleName, moduleReExports) )
 import           Language.PureScript.DCE.Utils (bindIdents, unBind)
 import Language.PureScript.Names
     ( getQual,
