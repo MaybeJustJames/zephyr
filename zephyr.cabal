@@ -6,12 +6,12 @@ synopsis:
 description:
   Tree shaking tool and partial evaluator for PureScript
   CoreFn AST.
-homepage:            https://github.com/coot/zephyr#readme
+homepage:            https://github.com/MaybeJustJames/zephyr#readme
 license:             MPL-2.0
 license-file:        LICENSE
 author:              Marcin Szamotulski <profunctor@pm.me>
-maintainer:          Marcin Szamotulski <profunctor@pm.me>
-copyright:           (c) 2017-2018 Marcin Szamotulski
+maintainer:          James Collier <profunctor@pm.me>
+copyright:           (c) 2017-2021 Marcin Szamotulski, (c) 2022 James Collier
 build-type:          Simple
 extra-source-files: 
   ChangeLog.md
@@ -192,4 +192,4 @@ test-suite zephyr-test
 
 source-repository head
   type:     git
-  location: https://github.com/coot/zephyr
+  location: https://github.com/MaybeJustJames/zephyr
