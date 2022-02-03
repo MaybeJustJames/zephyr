@@ -68,6 +68,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         purs.exe --version
+        echo %PATH%
 
     - name: Build zephyr
       run: |
