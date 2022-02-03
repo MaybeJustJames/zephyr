@@ -1,3 +1,18 @@
-# Verison v0.3.2
+# ChangeLog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+
+## [Unreleased]
+### Added
+- Use purescript 0.14 for code generation
+
+### Fixed
+- DCE of re-exported symbols for purescipt 0.14 modules
+
+## [v0.3.2]
 - Copy foreign modules from source directories if they are not present in the
   `output` directory.
+
+[Unreleased]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.2...HEAD
+[v0.3.2]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.1...v0.3.2
