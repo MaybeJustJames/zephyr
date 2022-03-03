@@ -121,7 +121,7 @@ executable zephyr
     , Glob                 >=0.9      && <0.11
     , language-javascript
     , mtl                  >=2.1.0    && <2.3.0
-    , optparse-applicative >=0.13.0   && <0.16
+    , optparse-applicative >=0.16.1   && <0.17
     , purescript           ^>=0.14.0
     , purescript-cst
     , text
@@ -160,7 +160,7 @@ test-suite zephyr-test
     , HUnit
     , language-javascript
     , mtl                  >=2.1.0    && <2.3.0
-    , optparse-applicative >=0.13.0   && <0.16
+    , optparse-applicative >=0.16.1   && <0.17
     , process
     , purescript           ^>=0.14
     , purescript-cst
