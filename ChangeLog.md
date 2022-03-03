@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+
+## [v0.4.0]
 ### Added
 - Use purescript 0.14 for code generation
 
@@ -14,5 +16,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Copy foreign modules from source directories if they are not present in the
   `output` directory.
 
-[Unreleased]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/MaybeJustJames/zephyr/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.2...v0.4.0
 [v0.3.2]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.1...v0.3.2
