@@ -154,7 +154,7 @@ test-suite zephyr-test
     , containers           >=0.6.5.1   && <0.7
     , directory            >=1.3.6.0   && <1.4
     , hspec
-    , hspec-core
+    , hspec-core           <2.9.3
     , HUnit
     , language-javascript  ==0.7.0.0
     , mtl                  >=2.2.2     && <2.3
