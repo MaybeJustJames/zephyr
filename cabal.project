@@ -1,11 +1,2 @@
-index-state: 2022-03-03T09:58:45Z
+index-state: 2022-06-23T22:25:02Z
 packages: .
-source-repository-package
-  type: git
-  location: https://github.com/working-group-purescript-es/purescript.git
-  tag: 593230b9d6f53790f25d5d9a93142dca942b8387
-source-repository-package
-  type: git
-  location: https://github.com/working-group-purescript-es/purescript.git
-  tag: 593230b9d6f53790f25d5d9a93142dca942b8387
-  subdir: lib/purescript-cst
