@@ -1,19 +1,19 @@
-function add (x, y) {
-    return x + y;
+function add_foreign(x, y) {
+  return x + y;
 }
 
-function mult (x, y) {
-    return x * y;
+function mult_foreign(x, y) {
+  return x * y;
 }
 
-exports.add = function(x) {
-    return function (y) {
-        return add (x, y);
-    }
+export function add(x) {
+  return function (y) {
+    return add_foreign(x, y);
+  };
 }
 
-exports.mult = function(x) {
-    return function (y) {
-        return mult(x, y);
-    }
+export function mult(x) {
+  return function (y) {
+    return mult_foreign(x, y);
+  };
 }

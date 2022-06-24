@@ -16,7 +16,7 @@ import           Test.Utils
 data LibTest = LibTest
   { libTestEntries       :: [Text]
   , libTestZephyrOptions :: Maybe [Text]
-  , libTestJsCmd         :: Text
+  , libTestJs            :: Text
   , libTestShouldPass    :: Bool
   -- ^ true if it should run without error, false if it should error
   }
@@ -24,39 +24,79 @@ data LibTest = LibTest
 
 libTests :: [LibTest]
 libTests =
-  [ LibTest ["Unsafe.Coerce.Test.unsafeX"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
-  , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test').add(1)(1);" True
-  , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test/foreign.js').mult(1)(1);" False
-  , LibTest ["Eval.makeAppQueue"] Nothing "require('./dce-output/Eval').makeAppQueue;" True
-  , LibTest ["Eval.evalUnderArrayLiteral"] Nothing "require('./dce-output/Eval').evalUnderArrayLiteral;" True
-  , LibTest ["Eval.evalUnderObjectLiteral"] Nothing "require('./dce-output/Eval').evalUnderObjectLiteral;" True
-  , LibTest ["Eval.evalVars"] Nothing "require('./dce-output/Eval').evalVars;" True
-  , LibTest ["Eval"] Nothing "require('./dce-output/Eval').evalVars;" True
-  , LibTest ["Eval.recordUpdate"] Nothing
-       ( " var eval = require('./dce-output/Eval');\n"
-      <> " var foo = eval.recordUpdate({foo: '', bar: 0})(eval.Foo.create('foo'));\n"
-      <> " if (foo.foo != 'foo') {\n"
-      <> "    console.error(foo)\n"
-      <> "    throw('Error')\n"
-      <> " }\n"
-      )
-      True
-  , LibTest ["Literals.fromAnArray"] Nothing
-       ( " var lits = require('./dce-output/Literals');\n"
-      <> " if (lits.fromAnArray == null || lits.AStr == null || lits.AInt != null) {\n"
-      <> "    throw('Error')\n"
-      <> " }\n"
-      )
-      True
-  , LibTest ["Literals.fromAnObject"] Nothing
-       ( " var lits = require('./dce-output/Literals');\n"
-      <> " if (lits.fromAnObject == null || lits.AStr == null || lits.AInt != null) {\n"
-      <> "    throw('Error')\n"
-      <> " }\n"
-      )
-      True
-  , LibTest ["Control.Alt.map"] Nothing "require('./dce-output/Control.Alt').map;" True
-  , LibTest ["Data.Array.span"] Nothing "require('./dce-output/Data.Array').span" True
+  [ LibTest ["Unsafe.Coerce.Test.unsafeX"]
+            Nothing
+            (  "import { unsafeX } from './dce-output/Unsafe.Coerce.Test/index.js';"
+            <> "unsafeX(1)(1);"
+            )
+            True
+  , LibTest ["Foreign.Test.add"]
+            Nothing
+            (  "import { add } from './dce-output/Foreign.Test/index.js';"
+            <> "add(1)(1);"
+            )
+            True
+  , LibTest ["Foreign.Test.add"]
+            Nothing
+            (  "import { mult } from './dce-output/Foreign.Test/index.js';"
+            <> "mult(1)(1);"
+            )
+            False
+  , LibTest ["Eval.makeAppQueue"]
+            Nothing
+            "import { makeAppQueue } from './dce-output/Eval/index.js';"
+            True
+  , LibTest ["Eval.evalUnderArrayLiteral"]
+            Nothing
+            "import { evalUnderArrayLiteral } from './dce-output/Eval/index.js';"
+            True
+  , LibTest ["Eval.evalUnderObjectLiteral"]
+            Nothing
+            "import { evalUnderObjectLiteral } from './dce-output/Eval/index.js';"
+            True
+  , LibTest ["Eval.evalVars"]
+            Nothing
+            "import { evalVars } from './dce-output/Eval/index.js';"
+            True
+  , LibTest ["Eval"]
+            Nothing
+            "import { evalVars } from './dce-output/Eval/index.js';"
+            True
+  , LibTest ["Eval.recordUpdate"]
+            Nothing
+            (  "import * as E from './dce-output/Eval/index.js';"
+            <> "var foo = E.recordUpdate({ foo: '', bar: 0 })(E.Foo.create('foo'));"
+            <> "if (foo.foo != 'foo') {"
+            <> "  console.error(foo);"
+            <> "  throw 'Error';"
+            <> "}"
+            )
+            True
+  , LibTest ["Literals.fromAnArray"]
+            Nothing
+            (  "import * as lits from './dce-output/Literals/index.js';"
+            <> "if (lits.fromAnArray == null || lits.AStr == null || lits.AInt != null) {"
+            <> "  throw 'Error';"
+            <> "}"
+            )
+            True
+  , LibTest ["Literals.fromAnObject"]
+            Nothing
+            (  "import * as lits from './dce-output/Literals/index.js';"
+            <> "if (lits.fromAnObject == null || lits.AStr == null || lits.AInt != null) {"
+            <> "  throw 'Error';"
+            <> "}"
+            )
+            True
+  -- Control.Alt re-exports map from Data.Functor
+  , LibTest ["Control.Alt.map"]
+            Nothing
+            "import { map } from './dce-output/Control.Alt/index.js';"
+            True
+  , LibTest ["Data.Array.span"]
+            Nothing
+            "import { span } from './dce-output/Data.Array/index.js';"
+            True
   ]
 
 
@@ -69,7 +109,7 @@ assertLib l = do
 runLibTest :: LibTest -> ExceptT TestError IO ()
 runLibTest LibTest { libTestEntries
                    , libTestZephyrOptions
-                   , libTestJsCmd
+                   , libTestJs
                    , libTestShouldPass
                    } = do
   spagoBuild "LibTest"
@@ -77,8 +117,9 @@ runLibTest LibTest { libTestEntries
   (ecNode, stdNode, errNode) <- lift
     $ readProcessWithExitCode
         "node"
-        [ "-e"
-        , T.unpack libTestJsCmd
+        [ "--input-type=module"
+        , "-e"
+        , T.unpack libTestJs
         ]
         ""
   when (libTestShouldPass && ecNode /= ExitSuccess)

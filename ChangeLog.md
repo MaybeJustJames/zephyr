@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+### Added
+- Update to PureScript 0.15 (#77 Thanks @i-am-the-slime)
+- Migrate tests to es-modules
 
 ## [v0.4.0]
 ### Added
