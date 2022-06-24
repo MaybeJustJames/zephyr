@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+
+## [v0.5.0]
 ### Added
 - Update to PureScript 0.15 (#77 Thanks @i-am-the-slime)
 - Migrate tests to es-modules
@@ -19,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Copy foreign modules from source directories if they are not present in the
   `output` directory.
 
-[Unreleased]: https://github.com/MaybeJustJames/zephyr/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/MaybeJustJames/zephyr/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/MaybeJustJames/zephyr/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.2...v0.4.0
 [v0.3.2]: https://github.com/MaybeJustJames/zephyr/compare/v0.3.1...v0.3.2
