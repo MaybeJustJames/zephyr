@@ -27,6 +27,14 @@ libTests =
   [ LibTest ["Unsafe.Coerce.Test.unsafeX"] Nothing "require('./dce-output/Unsafe.Coerce.Test').unsafeX(1)(1);" True
   , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test').add(1)(1);" True
   , LibTest ["Foreign.Test.add"] Nothing "require('./dce-output/Foreign.Test/foreign.js').mult(1)(1);" False
+  , LibTest ["Foreign.Test.snowflake"] Nothing
+       ( "var snowflake = require('./dce-output/Foreign.Test/foreign.js').snowflake;\n"
+      <> "if(snowflake !== '❄'){\n"
+      <> "  console.error(`'${snowflake}' !== '❄'`);\n"
+      <> "  throw('Error');\n"
+      <> "}\n"
+       )
+       True
   , LibTest ["Eval.makeAppQueue"] Nothing "require('./dce-output/Eval').makeAppQueue;" True
   , LibTest ["Eval.evalUnderArrayLiteral"] Nothing "require('./dce-output/Eval').evalUnderArrayLiteral;" True
   , LibTest ["Eval.evalUnderObjectLiteral"] Nothing "require('./dce-output/Eval').evalUnderObjectLiteral;" True

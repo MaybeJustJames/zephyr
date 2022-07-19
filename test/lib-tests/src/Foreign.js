@@ -17,3 +17,5 @@ exports.mult = function(x) {
         return mult(x, y);
     }
 }
+
+exports.snowflake = "❄";
