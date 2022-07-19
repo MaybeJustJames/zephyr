@@ -17,9 +17,8 @@ import Safe (atMay)
 
 import Language.PureScript.AST.Literals
 import Language.PureScript.CoreFn
---import Language.PureScript.DCE.Errors
 import Language.PureScript.DCE.Utils
-import Language.PureScript.Names
+import Language.PureScript.Names (Ident(..), ModuleName(..), Qualified(..), QualifiedBy(..))
 import Language.PureScript.PSString
 
 
@@ -242,13 +241,13 @@ eval :: [Module Ann]
 
 -- eval _    _  _  _  = Nothing -- TODO: testing without evaluation
 
-eval mods mn st (Var _ (Qualified Nothing i)) = 
+eval mods mn st (Var _ (Qualified (BySourcePos _) i)) = 
     case lookupStack i st of
       Nothing               -> Nothing
       Just ((_, e), Done)   -> Just e
       Just ((_, e), NotYet) -> eval mods mn (markDone i st) e
 
-eval mods mn st (Var ann qi@(Qualified (Just imn) i)) =
+eval mods mn st (Var ann qi@(Qualified (ByModuleName imn) i)) =
     case lookupQualifiedExpr mods imn i of
       Nothing             -> throw (QualifiedExpresionError ann qi (moduleName `map` mods))
       Just (FoundExpr e)  -> eval mods mn st e
@@ -283,19 +282,19 @@ eval mods mn st
         (App _
           (Var _
             (Qualified
-              (Just C.Eq)
+              (ByModuleName C.Eq)
               (Ident "eq")))
           (Var _ inst))
           e1)
       e2) =
     if inst `elem`
-          [ Qualified (Just C.eqMod) (Ident "eqBoolean")
-          , Qualified (Just C.eqMod) (Ident "eqInt")
-          , Qualified (Just C.eqMod) (Ident "eqNumber")
-          , Qualified (Just C.eqMod) (Ident "eqChar")
-          , Qualified (Just C.eqMod) (Ident "eqString")
-          , Qualified (Just C.eqMod) (Ident "eqUnit")
-          , Qualified (Just C.eqMod) (Ident "eqVoid")
+          [ Qualified (ByModuleName C.eqMod) (Ident "eqBoolean")
+          , Qualified (ByModuleName C.eqMod) (Ident "eqInt")
+          , Qualified (ByModuleName C.eqMod) (Ident "eqNumber")
+          , Qualified (ByModuleName C.eqMod) (Ident "eqChar")
+          , Qualified (ByModuleName C.eqMod) (Ident "eqString")
+          , Qualified (ByModuleName C.eqMod) (Ident "eqUnit")
+          , Qualified (ByModuleName C.eqMod) (Ident "eqVoid")
           ]
       then case (eval mods mn st e1, eval mods mn st e2) of
           (Just (Literal _ l1), Just (Literal _ l2))
@@ -311,7 +310,7 @@ eval mods mn st
         (App _
           (Var ann@(ss, _, _, _)
             (Qualified
-              (Just (ModuleName "Data.Array"))
+              (ByModuleName (ModuleName "Data.Array"))
               (Ident "index")))
           (Literal _ (ArrayLiteral as)))
         (Literal _ (NumericLiteral (Left x)))) =
@@ -323,7 +322,7 @@ eval mods mn st
           Just $ App ann
                   (Var (ss, [], Nothing, Just (IsConstructor SumType [Ident "value0"]))
                     (Qualified
-                      (Just C.maybeMod)
+                      (ByModuleName C.maybeMod)
                       (Ident "Just")))
                   e'
 --
@@ -333,22 +332,22 @@ eval _ _ms _st
     (App ann
       (App _
         (App _
-           (Var _ (Qualified (Just C.Semigroup) (Ident "append")))
+           (Var _ (Qualified (ByModuleName C.Semigroup) (Ident "append")))
            (Var _ qi))
         e1)
       e2)
-      | qi == Qualified (Just C.semigroup) (Ident "semigroupArray")
+      | qi == Qualified (ByModuleName C.semigroup) (Ident "semigroupArray")
       , Literal _ (ArrayLiteral a1) <- e1
       , Literal _ (ArrayLiteral a2) <- e2
       = Just $ Literal ann (ArrayLiteral $ a1 ++ a2)
-      | qi == Qualified (Just C.semigroup) (Ident "semigroupString")
+      | qi == Qualified (ByModuleName C.semigroup) (Ident "semigroupString")
       , Literal _ (StringLiteral s1) <- e1
       , Just t1 <- decodeString s1
       , Literal _ (StringLiteral s2) <- e2
       , Just t2 <- decodeString s2
       = Just $ Literal ann (StringLiteral (mkString $ t1 <> t2) )
-      | qi == Qualified (Just C.semigroup) (Ident "semigroupUnit")
-      = Just $ Var ann (Qualified (Just C.unit) (Ident "unit"))
+      | qi == Qualified (ByModuleName C.semigroup) (Ident "semigroupUnit")
+      = Just $ Var ann (Qualified (ByModuleName C.unit) (Ident "unit"))
       | otherwise
       = Nothing
 
@@ -359,66 +358,66 @@ eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
-           (Var _ (Qualified (Just C.Semiring) (Ident "add")))
+           (Var _ (Qualified (ByModuleName C.Semiring) (Ident "add")))
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringInt")
     , Literal _ (NumericLiteral (Left a1)) <- e1
     , Literal _ (NumericLiteral (Left a2)) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Left (a1 + a2)))
-    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringNumber")
     , Literal _ (NumericLiteral (Right a1)) <- e1
     , Literal _ (NumericLiteral (Right a2)) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Right (a1 + a2)))
-    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
 eval _ _mn _st
     (App (ss, c, _, _)
-      (Var _ (Qualified (Just C.Semiring) (Ident "zero")))
+      (Var _ (Qualified (ByModuleName C.Semiring) (Ident "zero")))
       (Var _ qi))
-    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringInt")
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Left 0))
     | qi == Qualified
-        (Just C.semiring)
+        (ByModuleName C.semiring)
         (Ident "semiringNumber")
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Right 0.0))
-    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringUnit")
     = Just  $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
 eval _ _mn _st
     (App (ss, c, _, _)
-      (Var _ (Qualified (Just C.Semiring) (Ident "one")))
+      (Var _ (Qualified (ByModuleName C.Semiring) (Ident "one")))
       (Var _ qi))
-    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringInt")
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Left 1))
-    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringNumber")
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Right 1.0))
-    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringUnit")
     = Just  $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
@@ -426,26 +425,26 @@ eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
-           (Var _ (Qualified (Just C.Semiring) (Ident "mul")))
+           (Var _ (Qualified (ByModuleName C.Semiring) (Ident "mul")))
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.semiring) (Ident "semiringInt")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringInt")
     , Literal _ (NumericLiteral (Left a1)) <- e1
     , Literal _ (NumericLiteral (Left a2)) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Left (a1 * a2)))
-    | qi == Qualified (Just C.semiring) (Ident "semiringNumber")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringNumber")
     , Literal _ (NumericLiteral (Right a1)) <- e1
     , Literal _ (NumericLiteral (Right a2)) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Right (a1 * a2)))
-    | qi == Qualified (Just C.semiring) (Ident "semiringUnit")
+    | qi == Qualified (ByModuleName C.semiring) (Ident "semiringUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
@@ -456,92 +455,92 @@ eval _ _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
-          (Var _ (Qualified (Just C.Ring) (Ident "sub")))
+          (Var _ (Qualified (ByModuleName C.Ring) (Ident "sub")))
           (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.ring) (Ident "ringInt")
+    | qi == Qualified (ByModuleName C.ring) (Ident "ringInt")
     , Literal _ (NumericLiteral (Left a1)) <- e1
     , Literal _ (NumericLiteral (Left a2)) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Left (quot a1 a2)))
-    | qi == Qualified (Just C.ring) (Ident "ringNumber")
+    | qi == Qualified (ByModuleName C.ring) (Ident "ringNumber")
     , Literal _ (NumericLiteral (Right a1)) <- e1
     , Literal _ (NumericLiteral (Right a2)) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Right (a1 / a2)))
-    | qi == Qualified (Just C.ring) (Ident "unitRing")
+    | qi == Qualified (ByModuleName C.ring) (Ident "unitRing")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
 
 eval _ _mn _st
     (App (ss, c, _, _)
       (App _
-        (Var _ (Qualified (Just C.Ring) (Ident "negate")))
+        (Var _ (Qualified (ByModuleName C.Ring) (Ident "negate")))
         (Var _ qi))
       e)
-    | qi == Qualified (Just C.ring) (Ident "ringInt")
+    | qi == Qualified (ByModuleName C.ring) (Ident "ringInt")
     , Literal _ (NumericLiteral (Left a)) <- e
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Left (-a)))
-    | qi == Qualified (Just C.ring) (Ident "ringNumber")
+    | qi == Qualified (ByModuleName C.ring) (Ident "ringNumber")
     , Literal _ (NumericLiteral (Right a)) <- e
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (NumericLiteral (Right (-a)))
-    | qi == Qualified (Just C.ring) (Ident "unitRing")
+    | qi == Qualified (ByModuleName C.ring) (Ident "unitRing")
     = Just  $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
 
 --
 -- evaluate Heyting algebras operations
 --
 eval _ _mn _st
     (App (ss, c, _, _)
-      (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "ff")))
+      (Var _ (Qualified (ByModuleName C.HeytingAlgebra) (Ident "ff")))
       (Var _ qi))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     = Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral False)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
 eval _ _mn _st
     (App (ss, c, _, _)
-      (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "tt")))
+      (Var _ (Qualified (ByModuleName C.HeytingAlgebra) (Ident "tt")))
       (Var _ qi))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     = Just $ Literal (ss, c, Nothing, Nothing) (BooleanLiteral True)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
 eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
-        (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "not")))
+        (Var _ (Qualified (ByModuleName C.HeytingAlgebra) (Ident "not")))
         (Var _ qi))
       e)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b) <- e
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (BooleanLiteral (not b))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
@@ -549,20 +548,20 @@ eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
-           (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "implies")))
+           (Var _ (Qualified (ByModuleName C.HeytingAlgebra) (Ident "implies")))
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (BooleanLiteral (not b1 && b2))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
@@ -570,20 +569,20 @@ eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
-           (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "disj")))
+           (Var _ (Qualified (ByModuleName C.HeytingAlgebra) (Ident "disj")))
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (BooleanLiteral (b1 || b2))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
@@ -591,20 +590,20 @@ eval _mods _mn _st
     (App (ss, c, _, _)
       (App _
         (App _
-           (Var _ (Qualified (Just C.HeytingAlgebra) (Ident "conj")))
+           (Var _ (Qualified (ByModuleName C.HeytingAlgebra) (Ident "conj")))
            (Var _ qi))
         e1)
       e2)
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraBoolean")
     , Literal _ (BooleanLiteral b1) <- e1
     , Literal _ (BooleanLiteral b2) <- e2
     = Just $ Literal
         (ss, c, Nothing, Nothing)
         (BooleanLiteral (b1 && b2))
-    | qi == Qualified (Just C.heytingAlgebra) (Ident "heytingAlgebraUnit")
+    | qi == Qualified (ByModuleName C.heytingAlgebra) (Ident "heytingAlgebraUnit")
     = Just $ Var
         (ss, c, Nothing, Nothing)
-        (Qualified (Just C.unit) (Ident "unit"))
+        (Qualified (ByModuleName C.unit) (Ident "unit"))
     | otherwise
     = Nothing
 
