@@ -1,3 +1,5 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 -- |
 -- Dead code elimination for `CoreFn`.
 module Language.PureScript.DCE.CoreFn
@@ -5,7 +7,7 @@ module Language.PureScript.DCE.CoreFn
   , runBindDeadCodeElimination
   ) where
 
-import           Prelude.Compat hiding (mod)
+import           Prelude hiding (mod)
 import           Control.Arrow ((***))
 import Control.Monad ( guard )
 import Data.Graph ( graphFromEdges, reachable, Vertex )

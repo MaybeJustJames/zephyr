@@ -6,7 +6,6 @@ module Language.PureScript.DCE.Foreign
   ( runForeignModuleDeadCodeElimination
   ) where
 
-import           Prelude.Compat
 import Control.Monad ( guard )
 import Data.Graph ( graphFromEdges, path, Vertex )
 import           Data.Foldable (foldr')

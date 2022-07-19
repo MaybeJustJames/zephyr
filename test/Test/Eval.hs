@@ -2,9 +2,6 @@
 
 module Test.Eval (spec) where
 
-import Prelude ()
-import Prelude.Compat
-
 import qualified Data.Map as Map
 
 import Language.PureScript.AST.Literals

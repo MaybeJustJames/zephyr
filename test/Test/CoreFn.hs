@@ -1,8 +1,5 @@
 module Test.CoreFn (spec)  where
 
-import Prelude ()
-import Prelude.Compat
-
 import Data.List (foldl', intersect)
 import qualified Data.List as L
 

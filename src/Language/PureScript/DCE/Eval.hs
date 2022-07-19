@@ -1,7 +1,11 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 -- | Evaluation of PureScript's expressions used in dead call elimnation.
 --
 module Language.PureScript.DCE.Eval
   ( evaluate ) where
+
+import Prelude hiding (mod)
 
 import Control.Applicative ((<|>))
 import Control.Exception (Exception (..), throw)
@@ -12,7 +16,6 @@ import Data.List (find)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Language.PureScript.DCE.Constants as C
-import Prelude.Compat hiding (mod)
 import Safe (atMay)
 
 import Language.PureScript.AST.Literals

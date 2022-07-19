@@ -17,3 +17,5 @@ export function mult(x) {
     return mult_foreign(x, y);
   };
 }
+
+export const a = "❄";
