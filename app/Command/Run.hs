@@ -23,7 +23,6 @@ import           Data.Aeson.Internal (JSONPath)
 import qualified Data.Aeson.Internal as A
 import           Data.Aeson.Parser (eitherDecodeWith, json)
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Lazy.Char8 as BSL.Char8 (unpack)
 import qualified Data.ByteString.Lazy.UTF8 as BU8
 import           Data.Bool (bool)
 import           Data.Either (lefts, rights, partitionEithers)
@@ -270,7 +269,7 @@ dceCommand Options { optEntryPoints
                   case moduleName `M.lookup` foreigns of
                     -- run `runForeignModuleDeadCodeElimination`
                     Just path | optForeign  -> do
-                      jsCode <- BSL.Char8.unpack <$> BSL.readFile path
+                      jsCode <- BU8.toString <$> BSL.readFile path
                       case JS.parseModule jsCode path of
                         Left _ -> return ()
                         Right (JS.JSAstModule items ann) ->

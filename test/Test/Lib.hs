@@ -44,10 +44,10 @@ libTests =
       )
       False,
     LibTest
-      ["Foreign.Test.a"]
+      ["Foreign.Test.snowflake"]
       Nothing
-      ( "import { a } from './dce-output/Foreign.Test/index.js';"
-          <> "console.log(a);"
+      ( "import { snowflake } from './dce-output/Foreign.Test/index.js';"
+          <> "if(snowflake !== '❄'){console.error(`'${snowflake}' !== '❄'`); throw 'Error';}"
       )
       True,
     LibTest
