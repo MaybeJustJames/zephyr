@@ -1,3 +1,5 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 -- |
 -- Errors used in dead call elimination.
 module Language.PureScript.DCE.Errors
@@ -16,8 +18,7 @@ module Language.PureScript.DCE.Errors
   )
   where
 
-import Prelude.Compat
-
+import           Prelude hiding (mod)
 import           Data.Char (isLower, isUpper, isSpace)
 import           Data.List (dropWhileEnd, findIndex, intersperse)
 import           Data.Text (Text)

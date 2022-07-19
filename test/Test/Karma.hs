@@ -1,7 +1,5 @@
 module Test.Karma (spec) where
 
-import           Prelude ()
-import           Prelude.Compat hiding (exp)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
 import           Data.Text (Text)

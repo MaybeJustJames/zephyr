@@ -2,7 +2,6 @@
 -- Helper module for dead call elimination.
 module Language.PureScript.DCE.Utils where
 
-import           Prelude.Compat
 import           Control.Arrow (first, second, (***), (+++))
 import           Language.PureScript.CoreFn
 import           Language.PureScript.Names

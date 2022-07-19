@@ -1,7 +1,5 @@
 module Test.CoreLib (spec) where
 
-import           Prelude ()
-import           Prelude.Compat hiding (exp)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
 import           Data.Maybe (fromJust, isJust)

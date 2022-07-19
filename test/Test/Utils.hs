@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
 module Test.Utils where
 
-import           Prelude ()
-import           Prelude.Compat hiding (exp)
+import           Prelude hiding (exp)
 import           Control.Exception (bracket)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Except
