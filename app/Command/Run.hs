@@ -145,19 +145,19 @@ formatDCEAppError opts _ (ParseErrors errs) =
           0 -> []
           x -> ["... (" <> T.pack (show x) <> " more)"]
   in sformat
-        (string%": Failed parsing:\n  "%stext)
+        (string % ": Failed parsing:\n  " % stext)
         (DCE.colorString DCE.errorColor "Error")
         (T.intercalate "\n\t" errs')
 formatDCEAppError _ _ (NoInputs path)
   = sformat
-        (stext%": No inputs found under "%string%" directory.\n"
-              %"       Please run `purs compile --codegen corefn ..` or"
-              %"`pulp build -- --codegen corefn`")
+        (stext % ": No inputs found under " % string % " directory.\n"
+               % "       Please run `purs compile --codegen corefn ..` or"
+               % "`pulp build -- --codegen corefn`")
         (DCE.colorText DCE.errorColor "Error")
         (DCE.colorString DCE.codeColor path)
 formatDCEAppError _ _ (InputNotDirectory path)
   = sformat
-        (stext%": Directory "%string%" does not exists.")
+        (stext % ": Directory "%string%" does not exists.")
         (DCE.colorText DCE.errorColor "Error")
         (DCE.colorString DCE.codeColor path)
 formatDCEAppError _ relPath (DCEAppError err)
@@ -191,7 +191,7 @@ getEntryPoints mods = go []
 
     fnd :: P.Qualified P.Ident -> [CoreFn.Module CoreFn.Ann] -> Bool
     fnd _ [] = False
-    fnd qi@(P.Qualified (Just mn) i) (pModule@CoreFn.Module{ CoreFn.moduleName } : ms)
+    fnd qi@(P.Qualified (P.ByModuleName mn) i) (pModule@CoreFn.Module{ CoreFn.moduleName } : ms)
       = if moduleName == mn && i `elem` (allExports pModule)
           then True
           else fnd qi ms

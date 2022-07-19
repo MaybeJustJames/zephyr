@@ -7,7 +7,7 @@ import Data.List (foldl')
 import Data.String (IsString (..))
 import Test.QuickCheck
 
-import Language.PureScript.Names (Ident (..), ModuleName (..), ProperName (..), Qualified (..))
+import Language.PureScript.Names (Ident (..), ModuleName (..), ProperName (..), Qualified (..), QualifiedBy (..))
 import Language.PureScript.PSString (PSString)
 import Language.PureScript.AST.SourcePos (SourceSpan (..), SourcePos (..))
 import Language.PureScript.AST (Literal (..))
@@ -50,20 +50,20 @@ genModuleName = elements
 
 genQualifiedIdent :: Gen (Qualified Ident)
 genQualifiedIdent = oneof
-  [ Qualified <$> liftArbitrary genModuleName <*> genIdent
-  , return (Qualified (Just C.unit) (Ident "unit"))
-  , return (Qualified (Just C.semiring) (Ident "add"))
-  , return (Qualified (Just C.semiring) (Ident "semiringInt"))
-  , return (Qualified (Just C.semiring) (Ident "semiringUnit"))
-  , return (Qualified (Just C.maybeMod) (Ident "Just"))
-  , return (Qualified (Just C.eqMod) (Ident "eq"))
-  , return (Qualified (Just C.ring) (Ident "negate"))
-  , return (Qualified (Just C.ring) (Ident "ringNumber"))
-  , return (Qualified (Just C.ring) (Ident "unitRing"))
+  [ (Qualified . ByModuleName <$> genModuleName) <*> genIdent
+  , return (Qualified (ByModuleName C.unit) (Ident "unit"))
+  , return (Qualified (ByModuleName C.semiring) (Ident "add"))
+  , return (Qualified (ByModuleName C.semiring) (Ident "semiringInt"))
+  , return (Qualified (ByModuleName C.semiring) (Ident "semiringUnit"))
+  , return (Qualified (ByModuleName C.maybeMod) (Ident "Just"))
+  , return (Qualified (ByModuleName C.eqMod) (Ident "eq"))
+  , return (Qualified (ByModuleName C.ring) (Ident "negate"))
+  , return (Qualified (ByModuleName C.ring) (Ident "ringNumber"))
+  , return (Qualified (ByModuleName C.ring) (Ident "unitRing"))
   ]
 
 genQualified :: Gen a -> Gen (Qualified a)
-genQualified gen = Qualified <$> liftArbitrary genModuleName <*> gen
+genQualified gen = Qualified . ByModuleName <$> genModuleName <*> gen
 
 genLiteral :: Gen (Literal (Expr Ann))
 genLiteral = oneof

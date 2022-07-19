@@ -32,7 +32,8 @@ import Language.PureScript.Names
       Ident(Ident),
       ModuleName,
       ProperName(runProperName),
-      Qualified(..) )
+      Qualified(..),
+      QualifiedBy(..) )
 
 type Key = Qualified Ident
 
@@ -109,7 +110,7 @@ runDeadCodeElimination entryPoints modules = uncurry runModuleDeadCodeEliminatio
 
           moduleForeign' :: [Ident]
           moduleForeign' = filter
-              ((`S.member` reachableSet) . Qualified (Just moduleName))
+              ((`S.member` reachableSet) . Qualified (ByModuleName moduleName))
               moduleForeign
             where
               reachableSet = foldr'
@@ -331,7 +332,7 @@ runBindDeadCodeElimination = go
         else isUsedInExpr i e
   isUsedInExpr i (App _ l r) = isUsedInExpr i l || isUsedInExpr i r
   isUsedInExpr i (Abs _ i' e) = i /= i' && isUsedInExpr i e
-  isUsedInExpr i (Var _ qi) = qi == Qualified Nothing i
+  isUsedInExpr i (Var _ qi@(Qualified by _)) = qi == Qualified by i
   isUsedInExpr i (Case _ es alts)
     = any (isUsedInExpr i) es || any (isUsedInCaseAlternative i) alts
   isUsedInExpr i (Let _ bs e) =

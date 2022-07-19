@@ -62,7 +62,7 @@ entryPointOpt = Opts.argument (Opts.auto >>= checkIfQualified) $
      Opts.metavar "entry-point"
   <> Opts.help "Qualified identifier or a module name (it may be prefixed with `ident:` or `module:`). All code which is not a transitive dependency of an entry point (or any exported identifier from a give module) will be removed. You can pass multiple entry points."
   where
-  checkIfQualified (EntryPoint q@(P.Qualified Nothing _)) = fail $
+  checkIfQualified (EntryPoint q@(P.Qualified (P.BySourcePos _) _)) = fail $
     "not a qualified indentifier: '" ++ T.unpack (P.showQualified P.runIdent q) ++ "'"
   checkIfQualified e = return e
 

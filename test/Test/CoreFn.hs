@@ -7,10 +7,10 @@ import Data.List (foldl', intersect)
 import qualified Data.List as L
 
 import Language.PureScript.AST.Literals
-import Language.PureScript.AST.SourcePos
+import Language.PureScript.AST.SourcePos (SourceSpan (..), SourcePos (..))
 import Language.PureScript.CoreFn
 import Language.PureScript.DCE
-import Language.PureScript.Names
+import Language.PureScript.Names (Ident (..), Qualified (..), QualifiedBy (..))
 import Language.PureScript.PSString
 
 import Test.Hspec
@@ -26,8 +26,11 @@ getNames (Rec l) = (\((_, i), _) -> i) `map` l
 hasIdent :: Ident -> [Bind Ann] -> Bool
 hasIdent i = (i `elem`) . concatMap getNames
 
+sp :: SourcePos
+sp = SourcePos 0 0
+
 ann :: Ann
-ann = ssAnn (SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0))
+ann = ssAnn (SourceSpan "src/Test.purs" sp sp)
 
 prop_exprDepth :: PSExpr Ann -> Property
 prop_exprDepth (PSExpr e) =
@@ -104,7 +107,7 @@ spec = do
                   [ NonRec ann (Ident "notUsed") (Literal ann (CharLiteral 'a'))
                   , NonRec ann (Ident "used") (Literal ann (CharLiteral 'b'))
                   ]
-                  (Var ann (Qualified Nothing (Ident "used")))
+                  (Var ann (Qualified (BySourcePos sp) (Ident "used")))
         case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
           NonRec _ _ (Let _ bs _) -> do
             bs `shouldSatisfy` not . hasIdent (Ident "notUsed")
@@ -114,10 +117,10 @@ spec = do
       specify "should not remove transitive dependency" $ do
         let e :: Expr Ann
             e = Let ann
-                  [ NonRec ann (Ident "used") (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "trDep"))))
+                  [ NonRec ann (Ident "used") (Abs ann (Ident "x") (Var ann (Qualified (BySourcePos sp) (Ident "trDep"))))
                   , NonRec ann (Ident "trDep") (Literal ann (CharLiteral 'a'))
                   ]
-                  (Var ann (Qualified Nothing (Ident "used")))
+                  (Var ann (Qualified (BySourcePos sp) (Ident "used")))
         case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
           NonRec _ _ (Let _ bs _) -> do
             bs `shouldSatisfy` hasIdent (Ident "trDep")
@@ -127,13 +130,13 @@ spec = do
       specify "should include all used recursive binds" $ do
         let e :: Expr Ann
             e = Let ann
-                  [ NonRec ann (Ident "entry") (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "mutDep1"))))
+                  [ NonRec ann (Ident "entry") (Abs ann (Ident "x") (Var ann (Qualified (BySourcePos sp) (Ident "mutDep1"))))
                   , Rec
-                    [ ((ann, Ident "mutDep1"), Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "mutDep2"))))
-                    , ((ann, Ident "mutDep2"), Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "mutDep1"))))
+                    [ ((ann, Ident "mutDep1"), Abs ann (Ident "x") (Var ann (Qualified (BySourcePos sp) (Ident "mutDep2"))))
+                    , ((ann, Ident "mutDep2"), Abs ann (Ident "x") (Var ann (Qualified (BySourcePos sp) (Ident "mutDep1"))))
                     ]
                   ]
-                  (App ann (Var ann (Qualified Nothing (Ident "entry"))) (Literal ann (CharLiteral 'a')))
+                  (App ann (Var ann (Qualified (BySourcePos sp) (Ident "entry"))) (Literal ann (CharLiteral 'a')))
         case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
           NonRec _ _ (Let _ bs _) -> do
             bs `shouldSatisfy` hasIdent (Ident "entry")
@@ -151,17 +154,17 @@ spec = do
                   , NonRec ann (Ident "usedInResult2") (Literal ann (CharLiteral 'a'))
                   ]
                   (Case ann
-                    [Var ann (Qualified Nothing (Ident "usedInExpr"))]
+                    [Var ann (Qualified (BySourcePos sp) (Ident "usedInExpr"))]
                     [ CaseAlternative
                         [NullBinder ann]
                         (Left
-                          [ ( Var ann (Qualified Nothing (Ident "usedInGuard"))
-                            , Var ann (Qualified Nothing (Ident "usedInResult1"))
+                          [ ( Var ann (Qualified (BySourcePos sp) (Ident "usedInGuard"))
+                            , Var ann (Qualified (BySourcePos sp) (Ident "usedInResult1"))
                             )
                           ])
                     , CaseAlternative
                         [NullBinder ann]
-                        (Right $ Var ann (Qualified Nothing (Ident "usedInResult2")))
+                        (Right $ Var ann (Qualified (BySourcePos sp) (Ident "usedInResult2")))
                     ])
         case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
           NonRec _ _ (Let _ bs _) -> do
@@ -182,8 +185,8 @@ spec = do
                     [ NonRec ann (Ident "shadow") (Literal ann (CharLiteral 'a')) ]
                     $ Literal ann
                       $ ObjectLiteral 
-                        [ ( mkString "a", Var ann (Qualified Nothing (Ident "shadow")) )
-                        , ( mkString "b", Var ann (Qualified Nothing (Ident "sunny")) )
+                        [ ( mkString "a", Var ann (Qualified (BySourcePos sp) (Ident "shadow")) )
+                        , ( mkString "b", Var ann (Qualified (BySourcePos sp) (Ident "sunny")) )
                         ]
         case runBindDeadCodeElimination (NonRec ann (Ident "v") e) of
           NonRec _ _ (Let _ bs (Let _ cs _)) -> do

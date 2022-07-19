@@ -8,11 +8,11 @@ import Prelude.Compat
 import qualified Data.Map as Map
 
 import Language.PureScript.AST.Literals
-import Language.PureScript.AST.SourcePos
+import Language.PureScript.AST.SourcePos (SourceSpan(..), SourcePos(..))
 import Language.PureScript.CoreFn
 import Language.PureScript.DCE
 import qualified Language.PureScript.DCE.Constants as C
-import Language.PureScript.Names
+import Language.PureScript.Names (Ident(..), ModuleName(..), Qualified(..), QualifiedBy(..))
 import Language.PureScript.PSString
 
 import Language.PureScript.DCE.Utils (showExpr)
@@ -20,18 +20,20 @@ import Language.PureScript.DCE.Utils (showExpr)
 import Test.Hspec
 import Test.HUnit (assertFailure)
 
+sp :: SourcePos
+sp = SourcePos 0 0
 
 ss :: SourceSpan
-ss = SourceSpan "src/Test.purs" (SourcePos 0 0) (SourcePos 0 0)
+ss = SourceSpan "src/Test.purs" sp sp
 
 ann :: Ann
 ann = ssAnn ss
 
 eq :: Qualified Ident
-eq = Qualified (Just C.eqMod) (Ident "eq")
+eq = Qualified (ByModuleName C.eqMod) (Ident "eq")
 
 eqBoolean :: Qualified Ident
-eqBoolean = Qualified (Just eqModName) (Ident "eqBoolean")
+eqBoolean = Qualified (ByModuleName eqModName) (Ident "eqBoolean")
 
 eqModName :: ModuleName
 eqModName = ModuleName "Data.Eq"
@@ -50,7 +52,7 @@ dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, u
   testMod = Module ss [] mn mp [] [] Map.empty []
     [ NonRec ann (Ident "v") e
     , NonRec ann (Ident "f")
-        (Abs ann (Ident "x") (Var ann (Qualified Nothing (Ident "x"))))
+        (Abs ann (Ident "x") (Var ann (Qualified (BySourcePos sp) (Ident "x"))))
     ]
   eqMod = Module ss [] C.eqMod "" [] [] Map.empty
     [ Ident "refEq" ]
@@ -61,11 +63,11 @@ dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, u
               (Literal ann (BooleanLiteral True)))))
     , NonRec ann (Ident "eqBoolean")
         (App ann
-          (Var ann (Qualified (Just C.eqMod) (Ident "Eq")))
-          (Var ann (Qualified (Just C.eqMod) (Ident "refEq"))))
+          (Var ann (Qualified (ByModuleName C.eqMod) (Ident "Eq")))
+          (Var ann (Qualified (ByModuleName C.eqMod) (Ident "refEq"))))
     , NonRec ann (Ident "Eq")
         (Abs ann (Ident "eq")
-          (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified Nothing (Ident "eq")))])))
+          (Literal ann (ObjectLiteral [(mkString "eq", Var ann (Qualified (BySourcePos sp) (Ident "eq")))])))
     ]
   booleanMod = Module ss [] (ModuleName "Data.Boolean") "" [] [] Map.empty []
     [ NonRec ann (Ident "otherwise") (Literal ann (BooleanLiteral True)) ]
@@ -80,7 +82,7 @@ dceEvalExpr' e mods = case evaluate ([testMod , eqMod , booleanMod , arrayMod, u
     [] [] Map.empty []
     [ NonRec ann (Ident "unsafeCoerce")
         (Abs ann (Ident "x")
-          (Var ann (Qualified Nothing (Ident "x"))))
+          (Var ann (Qualified (BySourcePos sp) (Ident "x"))))
     ]
 
 dceEvalExpr :: Expr Ann -> Expr Ann
@@ -156,7 +158,7 @@ spec =
               (Literal ann (BooleanLiteral True))
           e :: Expr Ann
           e = Let ann [NonRec ann (Ident "v") v]
-                (Case ann [Var ann (Qualified Nothing (Ident "v"))]
+                (Case ann [Var ann (Qualified (BySourcePos sp) (Ident "v"))]
                   [ CaseAlternative
                       [ LiteralBinder ann (BooleanLiteral True) ]
                       (Right (Literal ann (CharLiteral 't')))
@@ -176,7 +178,7 @@ spec =
             App ann
               (App ann
                 (App ann
-                  (Var ann (Qualified (Just mn) (Ident "f")))
+                  (Var ann (Qualified (ByModuleName mn) (Ident "f")))
                   (Var ann eqBoolean))
                 (Literal ann (BooleanLiteral True)))
               (Literal ann (BooleanLiteral True))
@@ -198,10 +200,10 @@ spec =
                         (App ann
                           (Var ann eq)
                           (Var ann eqBoolean))
-                        (Var ann (Qualified Nothing (Ident "x"))))
+                        (Var ann (Qualified (BySourcePos sp) (Ident "x"))))
                       (Literal ann (BooleanLiteral True))
                     , Literal ann (CharLiteral 't'))
-                  , ( Var ann (Qualified (Just (ModuleName "Data.Boolean")) (Ident "otherwise"))
+                  , ( Var ann (Qualified (ByModuleName (ModuleName "Data.Boolean")) (Ident "otherwise"))
                     , (Literal ann (CharLiteral 'f'))
                     )
                   ])
@@ -229,7 +231,7 @@ spec =
             [NonRec ann (Ident "isProduction") (Literal ann (BooleanLiteral True))]
           e :: Expr Ann
           e = Case ann
-            [ Var ann (Qualified (Just (ModuleName "Utils")) (Ident "isProduction"))]
+            [ Var ann (Qualified (ByModuleName (ModuleName "Utils")) (Ident "isProduction"))]
             [ CaseAlternative [LiteralBinder ann (BooleanLiteral True)] (Right (Literal ann (CharLiteral 't')))
             , CaseAlternative [LiteralBinder ann (BooleanLiteral False)] (Right (Literal ann (CharLiteral 'f')))
             ]
@@ -262,11 +264,11 @@ spec =
       let e :: Expr Ann
           e = (App ann
                 (App ann
-                  (Var ann (Qualified (Just (ModuleName "Data.Array")) (Ident "index")))
+                  (Var ann (Qualified (ByModuleName (ModuleName "Data.Array")) (Ident "index")))
                   (Literal ann (ArrayLiteral [Literal ann (CharLiteral 't')])))
                 (Literal ann (NumericLiteral (Left 0))))
       case dceEvalExpr e of
-        (App _ (Var _ (Qualified (Just (ModuleName "Data.Maybe")) (Ident "Just"))) (Literal _ (CharLiteral 't'))) -> return ()
+        (App _ (Var _ (Qualified (ByModuleName (ModuleName "Data.Maybe")) (Ident "Just"))) (Literal _ (CharLiteral 't'))) -> return ()
         x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
         -- Left err -> assertFailure $ "compilation error: " ++ show err
 
@@ -278,7 +280,7 @@ spec =
             e :: Expr Ann
             e = Let ann [ NonRec ann (Ident "a") (Literal ann (CharLiteral 'a')) ]
                   (Let ann [ NonRec ann (Ident "a") (Literal ann (CharLiteral 'b')) ]
-                    (Var ann (Qualified Nothing (Ident "a"))))
+                    (Var ann (Qualified (BySourcePos sp) (Ident "a"))))
         case dceEvalExpr e of
           Let _ _ (Let _ _ (Literal _ (CharLiteral 'b'))) -> return ()
           x -> assertFailure $ "unexpected expression:\n" ++ showExpr x
@@ -287,8 +289,8 @@ spec =
     context "Var inlining" $ do
       let oModName = ModuleName "Other"
           oMod = Module ss [] oModName "" [] [] Map.empty []
-            [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (Just C.eqMod) (Ident "eq"))) ])
-            , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (Just C.eqMod) (Ident "eq")) ])
+            [ NonRec ann (Ident "o") $ Literal ann (ObjectLiteral [(mkString "a", Var ann (Qualified (ByModuleName C.eqMod) (Ident "eq"))) ])
+            , NonRec ann (Ident "a") $ Literal ann (ArrayLiteral [ Var ann (Qualified (ByModuleName C.eqMod) (Ident "eq")) ])
             , NonRec ann (Ident "s") $ Literal ann (StringLiteral (mkString "very-long-string"))
             , NonRec ann (Ident "b") $ Literal ann (BooleanLiteral True)
             , NonRec ann (Ident "c") $ Literal ann (CharLiteral 'a')
@@ -296,7 +298,7 @@ spec =
             ]
       specify "should not inline Var linking to an object literal" $ do
         let e :: Expr Ann
-            e = Var ann (Qualified (Just oModName) (Ident "o"))
+            e = Var ann (Qualified (ByModuleName oModName) (Ident "o"))
         case dceEvalExpr' e [oMod] of
           Var{} -> return ()
           e' -> assertFailure $ "unexpected expression: " ++ showExpr e'
@@ -304,7 +306,7 @@ spec =
 
       specify "should not inline Var linking to an array literal" $ do
         let e :: Expr Ann
-            e = Var ann (Qualified (Just oModName) (Ident "a"))
+            e = Var ann (Qualified (ByModuleName oModName) (Ident "a"))
         case dceEvalExpr' e [oMod] of
           Var{} -> return ()
           e' -> assertFailure $ "unexpected expression: " ++ showExpr e'
@@ -312,7 +314,7 @@ spec =
 
       specify "should not inline Var linking to a string literal" $ do
         let e :: Expr Ann
-            e = Var ann (Qualified (Just oModName) (Ident "s"))
+            e = Var ann (Qualified (ByModuleName oModName) (Ident "s"))
         case dceEvalExpr' e [oMod] of
           Var{} -> return ()
           e' -> assertFailure $ "unexpected expression: " ++ showExpr e'
@@ -320,7 +322,7 @@ spec =
 
       specify "should inline Var lining to a boolean literal" $ do
         let e :: Expr Ann
-            e = Var ann (Qualified (Just oModName) (Ident "b"))
+            e = Var ann (Qualified (ByModuleName oModName) (Ident "b"))
         case dceEvalExpr' e [oMod] of
           (Literal _ (BooleanLiteral{})) -> return ()
           e' -> assertFailure $ "wront expression: " ++ showExpr e'
@@ -328,7 +330,7 @@ spec =
 
       specify "should inline Var lining to a char literal" $ do
         let e :: Expr Ann
-            e = Var ann (Qualified (Just oModName) (Ident "c"))
+            e = Var ann (Qualified (ByModuleName oModName) (Ident "c"))
         case dceEvalExpr' e [oMod] of
           (Literal _ (CharLiteral{})) -> return ()
           e' -> assertFailure $ "wront expression: " ++ showExpr e'
@@ -336,7 +338,7 @@ spec =
 
       specify "should inline Var lining to a numeric literal" $ do
         let e :: Expr Ann
-            e = Var ann (Qualified (Just oModName) (Ident "n"))
+            e = Var ann (Qualified (ByModuleName oModName) (Ident "n"))
         case dceEvalExpr' e [oMod] of
           (Literal _ (NumericLiteral{})) -> return ()
           e' -> assertFailure $ "wront expression: " ++ showExpr e'
