@@ -18,4 +18,4 @@ export function mult(x) {
   };
 }
 
-export const a = "❄";
+export const snowflake = "❄";
