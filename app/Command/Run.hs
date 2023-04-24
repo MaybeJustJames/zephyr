@@ -115,8 +115,8 @@ printWarningsAndErrors verbose False warnings errors = do
 
 printWarningsAndErrors verbose True warnings errors = do
   hPutStrLn stderr . BU8.toString . A.encode $
-    P.JSONResult (P.toJSONErrors verbose P.Warning warnings)
-               (either (P.toJSONErrors verbose P.Error) (const []) errors)
+    P.JSONResult (P.toJSONErrors verbose P.Warning [] warnings)
+               (either (P.toJSONErrors verbose P.Error []) (const []) errors)
   either (const exitFailure) (const (return ())) errors
 
 

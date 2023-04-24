@@ -121,7 +121,7 @@ npmInstall coreLibTestRepo npmModules = do
   pkgJson <- lift $ doesFileExist "package.json"
   nodeModulesExists <- lift $ doesDirectoryExist "node_modules"
   when ((pkgJson || not (null npmModules)) && not nodeModulesExists) $ do
-    when (not $ null $ npmModules) $ do
+    unless (null npmModules) $ do
       (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode npmExe (["install"] ++ T.unpack `map` npmModules) ""
       when (ecNpm /= ExitSuccess) (throwError (NpmError coreLibTestRepo ecNpm errNpm))
     (ecNpm, _, errNpm) <- lift $ readProcessWithExitCode npmExe ["install"] ""

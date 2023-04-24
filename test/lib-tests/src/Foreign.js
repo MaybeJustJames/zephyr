@@ -19,3 +19,10 @@ export function mult(x) {
 }
 
 export const snowflake = "❄";
+
+const a = () => 5;
+export const b = () => a();
+
+//export { a, b };
+
+// export * from "react";

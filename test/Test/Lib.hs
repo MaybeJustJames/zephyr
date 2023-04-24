@@ -44,10 +44,22 @@ libTests =
       )
       False,
     LibTest
+      ["Foreign.Test.add"]
+      Nothing
+      "import { mult } from './dce-output/Foreign.Test/foreign.js';"
+      False,
+    LibTest
       ["Foreign.Test.snowflake"]
       Nothing
       ( "import { snowflake } from './dce-output/Foreign.Test/index.js';"
           <> "if(snowflake !== '❄'){console.error(`'${snowflake}' !== '❄'`); throw 'Error';}"
+      )
+      True,
+    LibTest
+      ["Foreign.Test.b"]
+      Nothing
+      ( "import { b } from './dce-output/Foreign.Test/index.js';"
+          <> "if(b() !== 5) throw 'Error';"
       )
       True,
     LibTest
@@ -113,7 +125,15 @@ libTests =
     LibTest
       ["Data.Array.span"]
       Nothing
-      "import { span } from './dce-output/Data.Array/index.js';"
+      ( "import { span } from './dce-output/Data.Array/index.js';"
+          <> "const a = [1, 3, 2, 4, 5];"
+          <> "const p = (x) => x % 2 === 1;"
+          <> "const r = span(p)(a);"
+          <> "const expected = { init: [1, 3], rest: [2, 4, 5] };"
+          <> "console.log(r);"
+          <> "if (!r.init.every((e, i) => e === expected.init[i])) throw 'Error';"
+          <> "if (!r.rest.every((e, i) => e === expected.rest[i])) throw 'Error';"
+      )
       True
   ]
 
